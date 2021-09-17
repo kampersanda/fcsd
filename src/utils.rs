@@ -22,6 +22,19 @@ pub fn get_strlen(a: &[u8]) -> usize {
     a.iter().position(|&c| c == END_MARKER).unwrap()
 }
 
+/// Checks if a is a prefix of b.
+pub fn is_prefix(a: &[u8], b: &[u8]) -> bool {
+    if a.len() > b.len() {
+        return false;
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+    }
+    true
+}
+
 pub mod vbyte {
     pub fn append(bytes: &mut Vec<u8>, mut val: usize) {
         while 127 < val {

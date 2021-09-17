@@ -52,13 +52,17 @@ impl FcDict {
 
     fn decode_header(&self, bi: usize, dec: &mut Vec<u8>) -> usize {
         dec.clear();
-
         let mut pos = self.pointers[bi];
         while self.serialized[pos] != END_MARKER {
             dec.push(self.serialized[pos]);
             pos += 1;
         }
         pos + 1
+    }
+
+    fn decode_lcp(&self, pos: usize) -> (usize, usize) {
+        let (lcp, num) = utils::vbyte::decode(&self.serialized[pos..]);
+        (lcp, pos + num)
     }
 
     fn decode_next(&self, mut pos: usize, dec: &mut Vec<u8>) -> usize {
@@ -72,7 +76,6 @@ impl FcDict {
     fn search_bucket(&self, key: &[u8]) -> (usize, bool) {
         let mut cmp = 0;
         let (mut lo, mut hi, mut mi) = (0, self.num_buckets(), 0);
-
         while lo < hi {
             mi = (lo + hi) / 2;
             cmp = utils::get_lcp(key, self.get_header(mi)).1;
@@ -84,11 +87,57 @@ impl FcDict {
                 return (mi, true);
             }
         }
-        if cmp < 0 {
+        if cmp < 0 || mi == 0 {
             (mi, false)
         } else {
             (mi - 1, false)
         }
+    }
+}
+
+pub struct FcBuilder {
+    pointers: Vec<usize>,
+    serialized: Vec<u8>,
+    last_key: Vec<u8>,
+    num_keys: usize,
+    bucket_size: usize,
+    max_length: usize,
+}
+
+impl FcBuilder {
+    pub fn new(bucket_size: usize) -> FcBuilder {
+        FcBuilder {
+            pointers: Vec::new(),
+            serialized: Vec::new(),
+            last_key: Vec::new(),
+            num_keys: 0,
+            bucket_size: bucket_size,
+            max_length: 0,
+        }
+    }
+
+    pub fn add(&mut self, key: &[u8]) -> bool {
+        let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
+        if cmp <= 0 {
+            return false;
+        }
+
+        if self.num_keys % self.bucket_size == 0 {
+            self.pointers.push(self.serialized.len());
+            self.serialized.extend_from_slice(&key);
+            self.serialized.push(END_MARKER);
+        } else {
+            utils::vbyte::append(&mut self.serialized, lcp);
+            self.serialized.extend_from_slice(&key[lcp..]);
+            self.serialized.push(END_MARKER);
+        }
+
+        self.last_key.resize(key.len(), 0);
+        self.last_key.copy_from_slice(key);
+        self.num_keys += 1;
+        self.max_length = std::cmp::max(self.max_length, key.len());
+
+        true
     }
 }
 
@@ -123,8 +172,8 @@ impl<'a> FcLocater<'a> {
             if pos == dict.serialized.len() {
                 break;
             }
-            let (lcp, num) = utils::vbyte::decode(&dict.serialized[pos..]);
-            pos += num;
+            let (lcp, next_pos) = dict.decode_lcp(pos);
+            pos = next_pos;
 
             dec.resize(lcp, 0);
             pos = dict.decode_next(pos, dec);
@@ -175,49 +224,137 @@ impl<'a> FcDecoder<'a> {
     }
 }
 
-pub struct FcBuilder {
-    pointers: Vec<usize>,
-    serialized: Vec<u8>,
-    last_key: Vec<u8>,
-    num_keys: usize,
-    bucket_size: usize,
-    max_length: usize,
+pub struct FcIterator<'a> {
+    dict: &'a FcDict,
+    dec: Vec<u8>,
+    pos: usize,
+    id: usize,
 }
 
-impl FcBuilder {
-    pub fn new(bucket_size: usize) -> FcBuilder {
-        FcBuilder {
-            pointers: Vec::new(),
-            serialized: Vec::new(),
-            last_key: Vec::new(),
-            num_keys: 0,
-            bucket_size: bucket_size,
-            max_length: 0,
+impl<'a> FcIterator<'a> {
+    pub fn new(dict: &'a FcDict) -> FcIterator<'a> {
+        FcIterator {
+            dict: dict,
+            dec: Vec::with_capacity(dict.max_length()),
+            pos: 0,
+            id: 0,
         }
     }
 
-    pub fn add(&mut self, key: &[u8]) -> bool {
-        let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
-        if cmp <= 0 {
-            return false;
+    pub fn next(&mut self) -> Option<(usize, &[u8])> {
+        let (dict, dec) = (&self.dict, &mut self.dec);
+        if self.pos == dict.serialized.len() {
+            return None;
         }
-
-        if self.num_keys % self.bucket_size == 0 {
-            self.pointers.push(self.serialized.len());
-            self.serialized.extend_from_slice(&key);
-            self.serialized.push(END_MARKER);
+        if self.id % dict.bucket_size() == 0 {
+            dec.clear();
+            self.pos = dict.decode_next(self.pos, dec);
         } else {
-            utils::vbyte::append(&mut self.serialized, lcp);
-            self.serialized.extend_from_slice(&key[lcp..]);
-            self.serialized.push(END_MARKER);
+            let (lcp, next_pos) = dict.decode_lcp(self.pos);
+            self.pos = next_pos;
+            dec.resize(lcp, 0);
+            self.pos = dict.decode_next(self.pos, dec);
+        }
+        self.id += 1;
+        Some((self.id - 1, dec))
+    }
+}
+
+pub struct FcPrefixIterator<'a> {
+    dict: &'a FcDict,
+    dec: Vec<u8>,
+    key: &'a [u8],
+    pos: usize,
+    id: usize,
+}
+
+impl<'a> FcPrefixIterator<'a> {
+    pub fn new(dict: &'a FcDict) -> FcPrefixIterator<'a> {
+        FcPrefixIterator {
+            key: &[],
+            dict: dict,
+            dec: Vec::with_capacity(dict.max_length()),
+            pos: 0,
+            id: 0,
+        }
+    }
+
+    pub fn set_key(&mut self, key: &'a [u8]) {
+        self.key = key;
+        self.dec.clear();
+        self.pos = 0;
+        self.id = 0;
+    }
+
+    pub fn next(&mut self) -> Option<(usize, &[u8])> {
+        if self.pos == self.dict.serialized.len() {
+            return None;
         }
 
-        self.last_key.resize(key.len(), 0);
-        self.last_key.copy_from_slice(key);
-        self.num_keys += 1;
-        self.max_length = std::cmp::max(self.max_length, key.len());
+        if self.dec.is_empty() {
+            if !self.search_first() {
+                self.dec.clear();
+                self.pos = self.dict.serialized.len();
+                self.id = 0;
+                return None;
+            }
+        } else {
+            self.id += 1;
+            if self.dict.pos_in_bucket(self.id) == 0 {
+                self.dec.clear();
+                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
+            } else {
+                let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
+                self.pos = next_pos;
+                self.dec.resize(lcp, 0);
+                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
+            }
+        }
 
-        true
+        if utils::is_prefix(self.key, &self.dec) {
+            Some((self.id, &self.dec))
+        } else {
+            self.dec.clear();
+            self.pos = self.dict.serialized.len();
+            self.id = 0;
+            None
+        }
+    }
+
+    fn search_first(&mut self) -> bool {
+        let (dict, dec) = (&self.dict, &mut self.dec);
+
+        if self.key.is_empty() {
+            self.pos = dict.decode_header(0, dec);
+            self.id = 0;
+            return true;
+        }
+
+        let (bi, found) = dict.search_bucket(self.key);
+        self.pos = dict.decode_header(bi, dec);
+        self.id = bi * dict.bucket_size();
+
+        if found || utils::is_prefix(self.key, &dec) {
+            return true;
+        }
+
+        for bj in 1..dict.bucket_size() {
+            if self.pos == dict.serialized.len() {
+                break;
+            }
+
+            let (lcp, next_pos) = dict.decode_lcp(self.pos);
+            self.pos = next_pos;
+            dec.resize(lcp, 0);
+            self.pos = dict.decode_next(self.pos, dec);
+
+            if utils::is_prefix(self.key, &dec) {
+                self.id += bj;
+                return true;
+            }
+        }
+
+        false
     }
 }
 
@@ -249,13 +386,26 @@ mod tests {
         let mut locater = FcLocater::new(&dict);
         for i in 0..keys.len() {
             let id = locater.run(keys[i].as_bytes()).unwrap();
-            println!("{}: {}", i, id);
+            assert_eq!(i, id);
         }
+
+        assert!(locater.run("aaa".as_bytes()).is_none());
+        assert!(locater.run("tell".as_bytes()).is_none());
+        assert!(locater.run("techno".as_bytes()).is_none());
+        assert!(locater.run("zzz".as_bytes()).is_none());
 
         let mut decoder = FcDecoder::new(&dict);
         for i in 0..keys.len() {
             let dec = decoder.run(i).unwrap();
-            println!("{}: {}", i, str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
         }
+
+        let mut iterator = FcIterator::new(&dict);
+        for i in 0..keys.len() {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(i, id);
+            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+        }
+        assert!(iterator.next().is_none());
     }
 }
