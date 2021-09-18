@@ -1,9 +1,15 @@
+mod intvec;
 mod utils;
 
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use intvec::IntVector;
+use std::io;
+
 const END_MARKER: u8 = 0;
+const SERIAL_COOKIE: u32 = 114514;
 
 pub struct FcDict {
-    pointers: Vec<usize>,
+    pointers: IntVector,
     serialized: Vec<u8>,
     num_keys: usize,
     bucket_size: usize,
@@ -13,12 +19,53 @@ pub struct FcDict {
 impl FcDict {
     pub fn from_builder(builder: FcBuilder) -> FcDict {
         FcDict {
-            pointers: builder.pointers,
+            pointers: IntVector::build(&builder.pointers),
             serialized: builder.serialized,
             num_keys: builder.num_keys,
             bucket_size: builder.bucket_size,
             max_length: builder.max_length,
         }
+    }
+
+    pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
+        self.pointers.serialize_into(&mut writer)?;
+        writer.write_u64::<LittleEndian>(self.serialized.len() as u64)?;
+        for &x in &self.serialized {
+            writer.write_u8(x)?;
+        }
+        writer.write_u64::<LittleEndian>(self.num_keys as u64)?;
+        writer.write_u64::<LittleEndian>(self.bucket_size as u64)?;
+        writer.write_u64::<LittleEndian>(self.max_length as u64)?;
+        Ok(())
+    }
+
+    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<FcDict> {
+        let cookie = reader.read_u32::<LittleEndian>()?;
+        if cookie != SERIAL_COOKIE {
+            return Err(io::Error::new(io::ErrorKind::Other, "unknown cookie value"));
+        }
+        let pointers = IntVector::deserialize_from(&mut reader)?;
+        let serialized = {
+            let len = reader.read_u64::<LittleEndian>()? as usize;
+            let mut serialized = vec![0; len];
+            for i in 0..len {
+                serialized[i] = reader.read_u8()?;
+            }
+            serialized
+        };
+
+        let num_keys = reader.read_u64::<LittleEndian>()? as usize;
+        let bucket_size = reader.read_u64::<LittleEndian>()? as usize;
+        let max_length = reader.read_u64::<LittleEndian>()? as usize;
+
+        Ok(FcDict {
+            pointers: pointers,
+            serialized: serialized,
+            num_keys: num_keys,
+            bucket_size: bucket_size,
+            max_length: max_length,
+        })
     }
 
     pub fn num_keys(&self) -> usize {
@@ -46,13 +93,13 @@ impl FcDict {
     }
 
     fn get_header(&self, bi: usize) -> &[u8] {
-        let header = &self.serialized[self.pointers[bi]..];
+        let header = &self.serialized[self.pointers.get(bi) as usize..];
         &header[..utils::get_strlen(&header)]
     }
 
     fn decode_header(&self, bi: usize, dec: &mut Vec<u8>) -> usize {
         dec.clear();
-        let mut pos = self.pointers[bi];
+        let mut pos = self.pointers.get(bi) as usize;
         while self.serialized[pos] != END_MARKER {
             dec.push(self.serialized[pos]);
             pos += 1;
@@ -96,7 +143,7 @@ impl FcDict {
 }
 
 pub struct FcBuilder {
-    pointers: Vec<usize>,
+    pointers: Vec<u64>,
     serialized: Vec<u8>,
     last_key: Vec<u8>,
     num_keys: usize,
@@ -123,7 +170,7 @@ impl FcBuilder {
         }
 
         if self.num_keys % self.bucket_size == 0 {
-            self.pointers.push(self.serialized.len());
+            self.pointers.push(self.serialized.len() as u64);
             self.serialized.extend_from_slice(&key);
             self.serialized.push(END_MARKER);
         } else {
@@ -246,7 +293,7 @@ impl<'a> FcIterator<'a> {
         if self.pos == dict.serialized.len() {
             return None;
         }
-        if self.id % dict.bucket_size() == 0 {
+        if dict.pos_in_bucket(self.id) == 0 {
             dec.clear();
             self.pos = dict.decode_next(self.pos, dec);
         } else {
