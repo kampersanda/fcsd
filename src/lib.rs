@@ -239,22 +239,49 @@ impl<'a> FcLocater<'a> {
         }
 
         let mut pos = dict.decode_header(bi, dec);
+        if pos == dict.serialized.len() {
+            return None;
+        }
 
-        for bj in 1..dict.bucket_size() {
+        // 1) Process the 1st internal string
+        {
+            let (dec_lcp, next_pos) = dict.decode_lcp(pos);
+            pos = next_pos;
+            dec.resize(dec_lcp, 0);
+            pos = dict.decode_next(pos, dec);
+        }
+
+        let (mut lcp, cmp) = utils::get_lcp(key, &dec);
+        if cmp == 0 {
+            return Some(bi * dict.bucket_size() + 1);
+        } else if cmp > 0 {
+            return None;
+        }
+
+        // 2) Process the next strings
+        for bj in 2..dict.bucket_size() {
             if pos == dict.serialized.len() {
                 break;
             }
-            let (lcp, next_pos) = dict.decode_lcp(pos);
+
+            let (dec_lcp, next_pos) = dict.decode_lcp(pos);
             pos = next_pos;
 
-            dec.resize(lcp, 0);
+            if lcp > dec_lcp {
+                break;
+            }
+
+            dec.resize(dec_lcp, 0);
             pos = dict.decode_next(pos, dec);
 
-            let cmp = utils::get_lcp(key, &dec).1;
-            if cmp == 0 {
-                return Some(bi * dict.bucket_size() + bj);
-            } else if cmp > 0 {
-                break;
+            if lcp == dec_lcp {
+                let (next_lcp, cmp) = utils::get_lcp(key, &dec);
+                if cmp == 0 {
+                    return Some(bi * dict.bucket_size() + bj);
+                } else if cmp > 0 {
+                    break;
+                }
+                lcp = next_lcp;
             }
         }
 
@@ -433,7 +460,21 @@ impl<'a> FcPrefixIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{Rng, SeedableRng};
+    use rand_chacha::ChaChaRng;
     use std::str;
+
+    fn gen_random_keys(num: usize, max_len: usize, seed: u64) -> Vec<Vec<u8>> {
+        let mut rng = ChaChaRng::seed_from_u64(seed);
+        let mut keys = Vec::with_capacity(num);
+        for _ in 0..num {
+            let len = (rng.gen::<usize>() % (max_len - 1)) + 1;
+            keys.push((0..len).map(|_| (rng.gen::<u8>() % 4) + 1).collect());
+        }
+        keys.sort();
+        keys.dedup();
+        keys
+    }
 
     #[test]
     fn test_toy() {
@@ -487,6 +528,25 @@ mod tests {
         }
         assert!(iterator.next().is_none());
 
+        let mut iterator = FcPrefixIterator::new(&dict);
+        iterator.set_key("idea".as_bytes());
+        {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(1, id);
+            assert_eq!("idea", str::from_utf8(&dec).unwrap());
+        }
+        {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(2, id);
+            assert_eq!("ideal", str::from_utf8(&dec).unwrap());
+        }
+        {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(3, id);
+            assert_eq!("ideas", str::from_utf8(&dec).unwrap());
+        }
+        assert!(iterator.next().is_none());
+
         let mut buffer = vec![];
         dict.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
@@ -497,6 +557,50 @@ mod tests {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
             assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+        }
+        assert!(iterator.next().is_none());
+    }
+
+    #[test]
+    fn test_random() {
+        let keys = gen_random_keys(10000, 8, 11);
+        let mut builder = FcBuilder::new(8).unwrap();
+
+        for key in &keys {
+            builder.add(key).unwrap();
+        }
+        let dict = FcDict::from_builder(builder);
+
+        let mut locater = FcLocater::new(&dict);
+        for i in 0..keys.len() {
+            let id = locater.run(&keys[i]).unwrap();
+            assert_eq!(i, id);
+        }
+
+        let mut decoder = FcDecoder::new(&dict);
+        for i in 0..keys.len() {
+            let dec = decoder.run(i).unwrap();
+            assert_eq!(&keys[i], dec);
+        }
+
+        let mut iterator = FcIterator::new(&dict);
+        for i in 0..keys.len() {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(i, id);
+            assert_eq!(&keys[i], dec);
+        }
+        assert!(iterator.next().is_none());
+
+        let mut buffer = vec![];
+        dict.serialize_into(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
+
+        let other = FcDict::deserialize_from(&buffer[..]).unwrap();
+        let mut iterator = FcIterator::new(&other);
+        for i in 0..keys.len() {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(i, id);
+            assert_eq!(&keys[i], dec);
         }
         assert!(iterator.next().is_none());
     }
