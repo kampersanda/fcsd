@@ -1,3 +1,4 @@
+use crate::utils;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io;
 
@@ -11,7 +12,7 @@ pub struct IntVector {
 impl IntVector {
     pub fn build(input: &[u64]) -> IntVector {
         let len = input.len();
-        let bits = needed_bits(*input.iter().max().unwrap());
+        let bits = utils::needed_bits(*input.iter().max().unwrap());
         let mask = (1 << bits) - 1;
 
         let mut chunks = vec![0; words_for(len * bits)];
@@ -48,6 +49,10 @@ impl IntVector {
         self.len
     }
 
+    pub fn serialized_size_in_bytes(&self) -> usize {
+        8 + self.chunks.len() * 8 + 8 * 3
+    }
+
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u64::<LittleEndian>(self.chunks.len() as u64)?;
         for &x in &self.chunks {
@@ -78,18 +83,6 @@ impl IntVector {
             mask: mask,
         })
     }
-}
-
-fn needed_bits(mut x: u64) -> usize {
-    if x == 0 {
-        return 1;
-    }
-    let mut n = 0;
-    while x != 0 {
-        x >>= 1;
-        n += 1;
-    }
-    n
 }
 
 fn words_for(bits: usize) -> usize {

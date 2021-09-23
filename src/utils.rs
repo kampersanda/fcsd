@@ -1,3 +1,5 @@
+use crate::END_MARKER;
+
 /// Returns (lcp, cmp) such that
 ///  - lcp: Length of longest commom prefix of two strings.
 ///  - cmp: if a < b then positive, elif b < a then negative, else zero.
@@ -18,7 +20,6 @@ pub fn get_lcp(a: &[u8], b: &[u8]) -> (usize, isize) {
 }
 
 pub fn get_strlen(a: &[u8]) -> usize {
-    use crate::END_MARKER;
     a.iter().position(|&c| c == END_MARKER).unwrap()
 }
 
@@ -33,6 +34,28 @@ pub fn is_prefix(a: &[u8], b: &[u8]) -> bool {
         }
     }
     true
+}
+
+/// Checks if END_MARKER is contained.
+pub fn contains_end_marker(a: &[u8]) -> bool {
+    a.iter().find(|&c| *c == END_MARKER).is_some()
+}
+
+pub fn is_power_of_two(x: usize) -> bool {
+    assert_ne!(x, 0);
+    (x & (x - 1)) == 0
+}
+
+pub fn needed_bits(mut x: u64) -> usize {
+    if x == 0 {
+        return 1;
+    }
+    let mut n = 0;
+    while x != 0 {
+        x >>= 1;
+        n += 1;
+    }
+    n
 }
 
 pub mod vbyte {

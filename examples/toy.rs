@@ -17,9 +17,9 @@ fn main() {
     ];
 
     let dict = {
-        let mut builder = FcBuilder::new(4);
+        let mut builder = FcBuilder::new(4).unwrap();
         for &key in &keys {
-            builder.add(key.as_bytes());
+            builder.add(key.as_bytes()).unwrap();
         }
         FcDict::from_builder(builder)
     };

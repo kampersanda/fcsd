@@ -12,7 +12,8 @@ pub struct FcDict {
     pointers: IntVector,
     serialized: Vec<u8>,
     num_keys: usize,
-    bucket_size: usize,
+    bucket_bits: usize,
+    bucket_mask: usize,
     max_length: usize,
 }
 
@@ -22,9 +23,18 @@ impl FcDict {
             pointers: IntVector::build(&builder.pointers),
             serialized: builder.serialized,
             num_keys: builder.num_keys,
-            bucket_size: builder.bucket_size,
+            bucket_bits: builder.bucket_bits,
+            bucket_mask: builder.bucket_mask,
             max_length: builder.max_length,
         }
+    }
+
+    pub fn serialized_size_in_bytes(&self) -> usize {
+        let mut bytes = 0;
+        bytes += 4; // SERIAL_COOKIE
+        bytes += self.pointers.serialized_size_in_bytes(); // pointers
+        bytes += 8 + self.serialized.len(); // serialized
+        bytes + 8 * 4
     }
 
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
@@ -35,7 +45,8 @@ impl FcDict {
             writer.write_u8(x)?;
         }
         writer.write_u64::<LittleEndian>(self.num_keys as u64)?;
-        writer.write_u64::<LittleEndian>(self.bucket_size as u64)?;
+        writer.write_u64::<LittleEndian>(self.bucket_bits as u64)?;
+        writer.write_u64::<LittleEndian>(self.bucket_mask as u64)?;
         writer.write_u64::<LittleEndian>(self.max_length as u64)?;
         Ok(())
     }
@@ -56,14 +67,16 @@ impl FcDict {
         };
 
         let num_keys = reader.read_u64::<LittleEndian>()? as usize;
-        let bucket_size = reader.read_u64::<LittleEndian>()? as usize;
+        let bucket_bits = reader.read_u64::<LittleEndian>()? as usize;
+        let bucket_mask = reader.read_u64::<LittleEndian>()? as usize;
         let max_length = reader.read_u64::<LittleEndian>()? as usize;
 
         Ok(FcDict {
             pointers: pointers,
             serialized: serialized,
             num_keys: num_keys,
-            bucket_size: bucket_size,
+            bucket_bits: bucket_bits,
+            bucket_mask: bucket_mask,
             max_length: max_length,
         })
     }
@@ -77,7 +90,7 @@ impl FcDict {
     }
 
     pub fn bucket_size(&self) -> usize {
-        self.bucket_size
+        self.bucket_mask + 1
     }
 
     pub fn max_length(&self) -> usize {
@@ -85,11 +98,11 @@ impl FcDict {
     }
 
     fn bucket_id(&self, id: usize) -> usize {
-        id / self.bucket_size
+        id >> self.bucket_bits
     }
 
     fn pos_in_bucket(&self, id: usize) -> usize {
-        id % self.bucket_size
+        id & self.bucket_mask
     }
 
     fn get_header(&self, bi: usize) -> &[u8] {
@@ -147,29 +160,41 @@ pub struct FcBuilder {
     serialized: Vec<u8>,
     last_key: Vec<u8>,
     num_keys: usize,
-    bucket_size: usize,
+    bucket_bits: usize,
+    bucket_mask: usize,
     max_length: usize,
 }
 
 impl FcBuilder {
-    pub fn new(bucket_size: usize) -> FcBuilder {
-        FcBuilder {
-            pointers: Vec::new(),
-            serialized: Vec::new(),
-            last_key: Vec::new(),
-            num_keys: 0,
-            bucket_size: bucket_size,
-            max_length: 0,
+    pub fn new(bucket_size: usize) -> Result<FcBuilder, String> {
+        if bucket_size == 0 {
+            Err("bucket_size is zero.".to_owned())
+        } else if !utils::is_power_of_two(bucket_size) {
+            Err("bucket_size is not a power of two.".to_owned())
+        } else {
+            Ok(FcBuilder {
+                pointers: Vec::new(),
+                serialized: Vec::new(),
+                last_key: Vec::new(),
+                num_keys: 0,
+                bucket_bits: utils::needed_bits((bucket_size - 1) as u64),
+                bucket_mask: bucket_size - 1,
+                max_length: 0,
+            })
         }
     }
 
-    pub fn add(&mut self, key: &[u8]) -> bool {
-        let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
-        if cmp <= 0 {
-            return false;
+    pub fn add(&mut self, key: &[u8]) -> Result<(), String> {
+        if utils::contains_end_marker(key) {
+            return Err("The input key contains END_MARKER.".to_owned());
         }
 
-        if self.num_keys % self.bucket_size == 0 {
+        let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
+        if cmp <= 0 {
+            return Err("The input key is less than the previous one.".to_owned());
+        }
+
+        if self.num_keys & self.bucket_mask == 0 {
             self.pointers.push(self.serialized.len() as u64);
             self.serialized.extend_from_slice(&key);
             self.serialized.push(END_MARKER);
@@ -184,7 +209,7 @@ impl FcBuilder {
         self.num_keys += 1;
         self.max_length = std::cmp::max(self.max_length, key.len());
 
-        true
+        Ok(())
     }
 }
 
@@ -413,6 +438,8 @@ mod tests {
     #[test]
     fn test_toy() {
         let keys = [
+            "deal",
+            "idea",
             "ideal",
             "ideas",
             "ideology",
@@ -423,10 +450,15 @@ mod tests {
             "trie",
         ];
 
-        let mut builder = FcBuilder::new(4);
+        assert!(FcBuilder::new(0).is_err());
+        assert!(FcBuilder::new(3).is_err());
+        let mut builder = FcBuilder::new(4).unwrap();
+
         for key in &keys {
-            builder.add(key.as_bytes());
+            assert!(builder.add(key.as_bytes()).is_ok());
         }
+        assert!(builder.add("tri".as_bytes()).is_err());
+        assert!(builder.add(&[0xFF, 0x00]).is_err());
 
         let dict = FcDict::from_builder(builder);
 
