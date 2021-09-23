@@ -23,6 +23,8 @@ fn main() {
         }
         FcDict::from_builder(builder)
     };
+
+    println!("=== Locate queries ===");
     {
         let mut locater = FcLocater::new(&dict);
         println!(
@@ -34,25 +36,32 @@ fn main() {
             locater.run("Google_Pixel".as_bytes()).unwrap_or(404)
         );
     }
+    println!("");
+
+    println!("=== Decode queries ===");
     {
         let mut decoder = FcDecoder::new(&dict);
         println!(
             "decode(4) = {}",
             std::str::from_utf8(decoder.run(4).unwrap()).unwrap()
         );
+        println!(
+            "decode(11) = {}",
+            std::str::from_utf8(decoder.run(11).unwrap()).unwrap()
+        );
     }
+    println!("");
+
+    println!("=== Enumeration ===");
     {
         let mut iterator = FcIterator::new(&dict);
         while let Some((id, dec)) = iterator.next() {
             println!("{} => {}", std::str::from_utf8(dec).unwrap(), id);
         }
     }
-    {
-        let mut iterator = FcIterator::new(&dict);
-        while let Some((id, dec)) = iterator.next() {
-            println!("{} => {}", std::str::from_utf8(dec).unwrap(), id);
-        }
-    }
+    println!("");
+
+    println!("=== Enumeration with prefix 'Mac' ===");
     {
         let mut iterator = FcPrefixIterator::new(&dict);
         iterator.set_key("Mac".as_bytes());
