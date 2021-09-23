@@ -455,7 +455,7 @@ mod tests {
         let mut builder = FcBuilder::new(4).unwrap();
 
         for key in &keys {
-            assert!(builder.add(key.as_bytes()).is_ok());
+            builder.add(key.as_bytes()).unwrap();
         }
         assert!(builder.add("tri".as_bytes()).is_err());
         assert!(builder.add(&[0xFF, 0x00]).is_err());
@@ -480,6 +480,19 @@ mod tests {
         }
 
         let mut iterator = FcIterator::new(&dict);
+        for i in 0..keys.len() {
+            let (id, dec) = iterator.next().unwrap();
+            assert_eq!(i, id);
+            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+        }
+        assert!(iterator.next().is_none());
+
+        let mut buffer = vec![];
+        dict.serialize_into(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
+
+        let other = FcDict::deserialize_from(&buffer[..]).unwrap();
+        let mut iterator = FcIterator::new(&other);
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
