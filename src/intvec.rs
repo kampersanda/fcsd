@@ -2,6 +2,7 @@ use crate::utils;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io;
 
+#[derive(Clone)]
 pub struct IntVector {
     chunks: Vec<u64>,
     len: usize,

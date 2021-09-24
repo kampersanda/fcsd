@@ -8,6 +8,9 @@ use std::io;
 const END_MARKER: u8 = 0;
 const SERIAL_COOKIE: u32 = 114514;
 
+/// Front-coding string dictionary that provides a bijection between strings and interger IDs.
+/// Let n be the number of strings, the integer IDs are in [0..n-1] and assigned in the lex order.
+#[derive(Clone)]
 pub struct FcDict {
     pointers: IntVector,
     serialized: Vec<u8>,
@@ -18,6 +21,7 @@ pub struct FcDict {
 }
 
 impl FcDict {
+    /// Builds the dictionary from the given builder.
     pub fn from_builder(builder: FcBuilder) -> FcDict {
         FcDict {
             pointers: IntVector::build(&builder.pointers),
@@ -29,6 +33,7 @@ impl FcDict {
         }
     }
 
+    /// Returns the number of bytes needed to write the dictionary.
     pub fn serialized_size_in_bytes(&self) -> usize {
         let mut bytes = 0;
         bytes += 4; // SERIAL_COOKIE
@@ -37,6 +42,7 @@ impl FcDict {
         bytes + 8 * 4
     }
 
+    /// Serializes the dictionary.
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
         writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
         self.pointers.serialize_into(&mut writer)?;
@@ -51,6 +57,7 @@ impl FcDict {
         Ok(())
     }
 
+    /// Deserializes the dictionary.
     pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<FcDict> {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
@@ -81,19 +88,22 @@ impl FcDict {
         })
     }
 
+    /// Gets the number of stored keys.
     pub fn num_keys(&self) -> usize {
         self.num_keys
     }
 
+    /// Gets the number of defined buckets.
     pub fn num_buckets(&self) -> usize {
         self.pointers.len()
     }
 
+    /// Gets the bucket size.
     pub fn bucket_size(&self) -> usize {
         self.bucket_mask + 1
     }
 
-    pub fn max_length(&self) -> usize {
+    fn max_length(&self) -> usize {
         self.max_length
     }
 
@@ -155,6 +165,8 @@ impl FcDict {
     }
 }
 
+/// Builder class of front-coding string dictionary.
+#[derive(Clone)]
 pub struct FcBuilder {
     pointers: Vec<u64>,
     serialized: Vec<u8>,
@@ -166,6 +178,8 @@ pub struct FcBuilder {
 }
 
 impl FcBuilder {
+    /// Makes the builder with the given bucket size.
+    /// The bucket size needs to be a power of two.
     pub fn new(bucket_size: usize) -> Result<FcBuilder, String> {
         if bucket_size == 0 {
             Err("bucket_size is zero.".to_owned())
@@ -184,6 +198,8 @@ impl FcBuilder {
         }
     }
 
+    /// Adds the given key string to the dictionary.
+    /// The keys have to be given in the lex order.
     pub fn add(&mut self, key: &[u8]) -> Result<(), String> {
         if utils::contains_end_marker(key) {
             return Err("The input key contains END_MARKER.".to_owned());
@@ -213,12 +229,15 @@ impl FcBuilder {
     }
 }
 
+/// Locater class to get the ID associated with a key string.
+#[derive(Clone)]
 pub struct FcLocater<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
 }
 
 impl<'a> FcLocater<'a> {
+    /// Makes the locater.
     pub fn new(dict: &'a FcDict) -> FcLocater<'a> {
         FcLocater {
             dict: dict,
@@ -226,6 +245,7 @@ impl<'a> FcLocater<'a> {
         }
     }
 
+    /// Returns the ID associated with the given key.
     pub fn run(&mut self, key: &[u8]) -> Option<usize> {
         if key.is_empty() {
             return None;
@@ -289,12 +309,15 @@ impl<'a> FcLocater<'a> {
     }
 }
 
+/// Decoder class to get the key string associated with an ID.
+#[derive(Clone)]
 pub struct FcDecoder<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
 }
 
 impl<'a> FcDecoder<'a> {
+    /// Makes the decoder.
     pub fn new(dict: &'a FcDict) -> FcDecoder<'a> {
         FcDecoder {
             dict: dict,
@@ -302,7 +325,8 @@ impl<'a> FcDecoder<'a> {
         }
     }
 
-    pub fn run(&mut self, id: usize) -> Option<&[u8]> {
+    /// Returns the string associated with the given ID.
+    pub fn run(&mut self, id: usize) -> Option<Vec<u8>> {
         let (dict, dec) = (&self.dict, &mut self.dec);
         if dict.num_keys() <= id {
             return None;
@@ -319,10 +343,12 @@ impl<'a> FcDecoder<'a> {
             pos = dict.decode_next(pos, dec);
         }
 
-        Some(dec)
+        Some(dec.clone())
     }
 }
 
+/// Iterator class to enumerate the stored keys and IDs in lex order.
+#[derive(Clone)]
 pub struct FcIterator<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
@@ -331,6 +357,7 @@ pub struct FcIterator<'a> {
 }
 
 impl<'a> FcIterator<'a> {
+    /// Makes the iterator.
     pub fn new(dict: &'a FcDict) -> FcIterator<'a> {
         FcIterator {
             dict: dict,
@@ -339,26 +366,35 @@ impl<'a> FcIterator<'a> {
             id: 0,
         }
     }
+}
 
-    pub fn next(&mut self) -> Option<(usize, &[u8])> {
-        let (dict, dec) = (&self.dict, &mut self.dec);
-        if self.pos == dict.serialized.len() {
+impl<'a> Iterator for FcIterator<'a> {
+    type Item = (usize, Vec<u8>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.dict.serialized.len() {
             return None;
         }
-        if dict.pos_in_bucket(self.id) == 0 {
-            dec.clear();
-            self.pos = dict.decode_next(self.pos, dec);
+        if self.dict.pos_in_bucket(self.id) == 0 {
+            self.dec.clear();
+            self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         } else {
-            let (lcp, next_pos) = dict.decode_lcp(self.pos);
+            let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
             self.pos = next_pos;
-            dec.resize(lcp, 0);
-            self.pos = dict.decode_next(self.pos, dec);
+            self.dec.resize(lcp, 0);
+            self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         }
         self.id += 1;
-        Some((self.id - 1, dec))
+        Some((self.id - 1, self.dec.clone()))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.dict.num_keys(), Some(self.dict.num_keys()))
     }
 }
 
+/// Iterator class to enumerate the stored keys and IDs in lex order, starting with a prefix.
+#[derive(Clone)]
 pub struct FcPrefixIterator<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
@@ -368,9 +404,10 @@ pub struct FcPrefixIterator<'a> {
 }
 
 impl<'a> FcPrefixIterator<'a> {
-    pub fn new(dict: &'a FcDict) -> FcPrefixIterator<'a> {
+    /// Makes the iterator with the prefix key.
+    pub fn new(dict: &'a FcDict, key: &'a [u8]) -> FcPrefixIterator<'a> {
         FcPrefixIterator {
-            key: &[],
+            key: key,
             dict: dict,
             dec: Vec::with_capacity(dict.max_length()),
             pos: 0,
@@ -378,46 +415,12 @@ impl<'a> FcPrefixIterator<'a> {
         }
     }
 
-    pub fn set_key(&mut self, key: &'a [u8]) {
+    /// Inits the prefix key.
+    pub fn init_key(&mut self, key: &'a [u8]) {
         self.key = key;
         self.dec.clear();
         self.pos = 0;
         self.id = 0;
-    }
-
-    pub fn next(&mut self) -> Option<(usize, &[u8])> {
-        if self.pos == self.dict.serialized.len() {
-            return None;
-        }
-
-        if self.dec.is_empty() {
-            if !self.search_first() {
-                self.dec.clear();
-                self.pos = self.dict.serialized.len();
-                self.id = 0;
-                return None;
-            }
-        } else {
-            self.id += 1;
-            if self.dict.pos_in_bucket(self.id) == 0 {
-                self.dec.clear();
-                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
-            } else {
-                let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
-                self.pos = next_pos;
-                self.dec.resize(lcp, 0);
-                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
-            }
-        }
-
-        if utils::is_prefix(self.key, &self.dec) {
-            Some((self.id, &self.dec))
-        } else {
-            self.dec.clear();
-            self.pos = self.dict.serialized.len();
-            self.id = 0;
-            None
-        }
     }
 
     fn search_first(&mut self) -> bool {
@@ -457,12 +460,54 @@ impl<'a> FcPrefixIterator<'a> {
     }
 }
 
+impl<'a> Iterator for FcPrefixIterator<'a> {
+    type Item = (usize, Vec<u8>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.dict.serialized.len() {
+            return None;
+        }
+
+        if self.dec.is_empty() {
+            if !self.search_first() {
+                self.dec.clear();
+                self.pos = self.dict.serialized.len();
+                self.id = 0;
+                return None;
+            }
+        } else {
+            self.id += 1;
+            if self.dict.pos_in_bucket(self.id) == 0 {
+                self.dec.clear();
+                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
+            } else {
+                let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
+                self.pos = next_pos;
+                self.dec.resize(lcp, 0);
+                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
+            }
+        }
+
+        if utils::is_prefix(self.key, &self.dec) {
+            Some((self.id, self.dec.clone()))
+        } else {
+            self.dec.clear();
+            self.pos = self.dict.serialized.len();
+            self.id = 0;
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.dict.num_keys()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaChaRng;
-    use std::str;
 
     fn gen_random_keys(num: usize, max_len: usize, seed: u64) -> Vec<Vec<u8>> {
         let mut rng = ChaChaRng::seed_from_u64(seed);
@@ -495,7 +540,7 @@ mod tests {
         assert!(FcBuilder::new(3).is_err());
         let mut builder = FcBuilder::new(4).unwrap();
 
-        for key in &keys {
+        for &key in &keys {
             builder.add(key.as_bytes()).unwrap();
         }
         assert!(builder.add("tri".as_bytes()).is_err());
@@ -508,7 +553,6 @@ mod tests {
             let id = locater.run(keys[i].as_bytes()).unwrap();
             assert_eq!(i, id);
         }
-
         assert!(locater.run("aaa".as_bytes()).is_none());
         assert!(locater.run("tell".as_bytes()).is_none());
         assert!(locater.run("techno".as_bytes()).is_none());
@@ -516,34 +560,32 @@ mod tests {
 
         let mut decoder = FcDecoder::new(&dict);
         for i in 0..keys.len() {
-            let dec = decoder.run(i).unwrap();
-            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[i].as_bytes(), &decoder.run(i).unwrap());
         }
 
         let mut iterator = FcIterator::new(&dict);
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[i].as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
 
-        let mut iterator = FcPrefixIterator::new(&dict);
-        iterator.set_key("idea".as_bytes());
+        let mut iterator = FcPrefixIterator::new(&dict, "idea".as_bytes());
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(1, id);
-            assert_eq!("idea", str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[1].as_bytes(), &dec);
         }
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(2, id);
-            assert_eq!("ideal", str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[2].as_bytes(), &dec);
         }
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(3, id);
-            assert_eq!("ideas", str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[3].as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
 
@@ -556,7 +598,7 @@ mod tests {
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(keys[i], str::from_utf8(&dec).unwrap());
+            assert_eq!(keys[i].as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
     }
@@ -580,14 +622,14 @@ mod tests {
         let mut decoder = FcDecoder::new(&dict);
         for i in 0..keys.len() {
             let dec = decoder.run(i).unwrap();
-            assert_eq!(&keys[i], dec);
+            assert_eq!(&keys[i], &dec);
         }
 
         let mut iterator = FcIterator::new(&dict);
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(&keys[i], dec);
+            assert_eq!(&keys[i], &dec);
         }
         assert!(iterator.next().is_none());
 
@@ -600,7 +642,7 @@ mod tests {
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(&keys[i], dec);
+            assert_eq!(&keys[i], &dec);
         }
         assert!(iterator.next().is_none());
     }
