@@ -10,7 +10,7 @@ documentation = "https://docs.rs/fcsd"
 repository = "https://github.com/kampersanda/fcsd"
 homepage = "https://github.com/kampersanda/fcsd"
 keywords = ["string", "index", "dictionary", "compression"]
-categories = ["data-structures", "string"]
+categories = ["data-structures"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
