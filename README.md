@@ -1,5 +1,11 @@
 # Front-coding string dictionary in Rust
 
+![](https://github.com/kampersanda/fcsd/actions/workflows/rust.yml/badge.svg)
+[![Documentation](https://docs.rs/fcsd/badge.svg)](https://docs.rs/fcsd)
+[![Crates.io](https://img.shields.io/crates/v/fcsd.svg)](https://crates.io/crates/fcsd)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/kampersanda/fcsd/blob/master/LICENSE)
+
+
 This is a Rust library of the (plain) front-coding string dictionary described in [*Martínez-Prieto et al., Practical compressed string dictionaries, INFOSYS 2016*](https://doi.org/10.1016/j.is.2015.08.008).
 
 ## Features
