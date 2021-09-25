@@ -1,6 +1,6 @@
 [package]
 name = "fcsd"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = ["Shunsuke Kanda (kampersanda) <shnsk.knd@gmail.com>"]
 description = "Front-coding string dictionary."

@@ -16,7 +16,7 @@ This is a Rust library of the (plain) front-coding string dictionary described i
 
 ## Example
 
-```Rust
+```rust
 use fcsd::*;
 
 fn main() {

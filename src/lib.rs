@@ -10,7 +10,7 @@
 //!
 //! ## Example
 //!
-//! ```Rust
+//! ```rust
 //! use fcsd::*;
 //!
 //! fn main() {
