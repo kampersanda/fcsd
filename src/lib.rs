@@ -289,7 +289,7 @@ impl FcBuilder {
 
     /// Adds the given key string to the dictionary.
     /// The keys have to be given in the lex order.
-    /// The key does not have to contain the 0 value.
+    /// The key must not contain the 0 value.
     pub fn add(&mut self, key: &[u8]) -> Result<(), String> {
         if utils::contains_end_marker(key) {
             return Err("The input key contains END_MARKER.".to_owned());

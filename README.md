@@ -96,7 +96,7 @@ fn main() {
 
 ## Note
 
-- Input keys do not have to contain `\0` character because the character is used for the string delimiter.
+- Input keys must not contain `\0` character because the character is used for the string delimiter.
 - The bucket size of 8 is recommended in space-time tradeoff by Martínez-Prieto's paper.
 
 ## Todo
