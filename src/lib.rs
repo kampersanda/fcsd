@@ -177,6 +177,26 @@ impl FcDict {
         })
     }
 
+    /// Makes the locater.
+    pub fn locater(&self) -> FcLocater {
+        FcLocater::new(self)
+    }
+
+    /// Makes the decoder.
+    pub fn decoder(&self) -> FcDecoder {
+        FcDecoder::new(self)
+    }
+
+    /// Makes the iterator.
+    pub fn iter(&self) -> FcIterator {
+        FcIterator::new(self)
+    }
+
+    /// Makes the prefix iterator.
+    pub fn prefix_iter<'a>(&'a self, key: &'a [u8]) -> FcPrefixIterator {
+        FcPrefixIterator::new(self, key)
+    }
+
     /// Gets the number of stored keys.
     pub fn num_keys(&self) -> usize {
         self.num_keys
@@ -638,7 +658,7 @@ mod tests {
 
         let dict = FcDict::from_builder(builder);
 
-        let mut locater = FcLocater::new(&dict);
+        let mut locater = dict.locater();
         for i in 0..keys.len() {
             let id = locater.run(keys[i].as_bytes()).unwrap();
             assert_eq!(i, id);
@@ -648,12 +668,12 @@ mod tests {
         assert!(locater.run("techno".as_bytes()).is_none());
         assert!(locater.run("zzz".as_bytes()).is_none());
 
-        let mut decoder = FcDecoder::new(&dict);
+        let mut decoder = dict.decoder();
         for i in 0..keys.len() {
             assert_eq!(keys[i].as_bytes(), &decoder.run(i).unwrap());
         }
 
-        let mut iterator = FcIterator::new(&dict);
+        let mut iterator = dict.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
@@ -661,7 +681,7 @@ mod tests {
         }
         assert!(iterator.next().is_none());
 
-        let mut iterator = FcPrefixIterator::new(&dict, "idea".as_bytes());
+        let mut iterator = dict.prefix_iter("idea".as_bytes());
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(1, id);
@@ -684,7 +704,7 @@ mod tests {
         assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
 
         let other = FcDict::deserialize_from(&buffer[..]).unwrap();
-        let mut iterator = FcIterator::new(&other);
+        let mut iterator = other.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
@@ -703,19 +723,19 @@ mod tests {
         }
         let dict = FcDict::from_builder(builder);
 
-        let mut locater = FcLocater::new(&dict);
+        let mut locater = dict.locater();
         for i in 0..keys.len() {
             let id = locater.run(&keys[i]).unwrap();
             assert_eq!(i, id);
         }
 
-        let mut decoder = FcDecoder::new(&dict);
+        let mut decoder = dict.decoder();
         for i in 0..keys.len() {
             let dec = decoder.run(i).unwrap();
             assert_eq!(&keys[i], &dec);
         }
 
-        let mut iterator = FcIterator::new(&dict);
+        let mut iterator = dict.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
@@ -728,7 +748,7 @@ mod tests {
         assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
 
         let other = FcDict::deserialize_from(&buffer[..]).unwrap();
-        let mut iterator = FcIterator::new(&other);
+        let mut iterator = other.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
