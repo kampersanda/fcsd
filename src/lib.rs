@@ -1,5 +1,11 @@
 //! # Front-coding string dictionary in Rust
 //!
+//! ![](https://github.com/kampersanda/fcsd/actions/workflows/rust.yml/badge.svg)
+//! [![Documentation](https://docs.rs/fcsd/badge.svg)](https://docs.rs/fcsd)
+//! [![Crates.io](https://img.shields.io/crates/v/fcsd.svg)](https://crates.io/crates/fcsd)
+//! [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/kampersanda/fcsd/blob/master/LICENSE)
+//!
+//!
 //! This is a Rust library of the (plain) front-coding string dictionary described in [*Martínez-Prieto et al., Practical compressed string dictionaries, INFOSYS 2016*](https://doi.org/10.1016/j.is.2015.08.008).
 //!
 //! ## Features
@@ -40,22 +46,22 @@
 //!
 //!     // Locates the IDs associated with given keys.
 //!     {
-//!         let mut locater = FcLocater::new(&dict);
-//!         assert_eq!(locater.run(keys[1].as_bytes()).unwrap(), 1);
-//!         assert_eq!(locater.run(keys[7].as_bytes()).unwrap(), 7);
-//!         assert!(locater.run("techno".as_bytes()).is_none());
+//!         let mut locator = dict.locator();
+//!         assert_eq!(locator.run(keys[1].as_bytes()).unwrap(), 1);
+//!         assert_eq!(locator.run(keys[7].as_bytes()).unwrap(), 7);
+//!         assert!(locator.run("techno".as_bytes()).is_none());
 //!     }
 //!
 //!     // Decodes the key strings associated with given IDs.
 //!     {
-//!         let mut decoder = FcDecoder::new(&dict);
+//!         let mut decoder = dict.decoder();
 //!         assert_eq!(&decoder.run(4).unwrap(), keys[4].as_bytes());
 //!         assert_eq!(&decoder.run(9).unwrap(), keys[9].as_bytes());
 //!     }
 //!
 //!     // Enumerates the stored keys and IDs in lex order.
 //!     {
-//!         let mut iterator = FcIterator::new(&dict);
+//!         let mut iterator = dict.iter();
 //!         while let Some((id, dec)) = iterator.next() {
 //!             assert_eq!(keys[id].as_bytes(), &dec);
 //!         }
@@ -63,7 +69,7 @@
 //!
 //!     // Enumerates the stored keys and IDs, starting with prefix "idea", in lex order.
 //!     {
-//!         let mut iterator = FcPrefixIterator::new(&dict, "idea".as_bytes());
+//!         let mut iterator = dict.prefix_iter("idea".as_bytes());
 //!         let (id, dec) = iterator.next().unwrap();
 //!         assert_eq!(1, id);
 //!         assert_eq!("idea".as_bytes(), &dec);
@@ -87,6 +93,11 @@
 //!     }
 //! }
 //! ```
+//!
+//! ## Note
+//!
+//! - Input keys must not contain `\0` character because the character is used for the string delimiter.
+//! - The bucket size of 8 is recommended in space-time tradeoff by Martínez-Prieto's paper.
 mod intvec;
 mod utils;
 
@@ -177,9 +188,9 @@ impl FcDict {
         })
     }
 
-    /// Makes the locater.
-    pub fn locater(&self) -> FcLocater {
-        FcLocater::new(self)
+    /// Makes the locator.
+    pub fn locator(&self) -> FcLocator {
+        FcLocator::new(self)
     }
 
     /// Makes the decoder.
@@ -339,17 +350,17 @@ impl FcBuilder {
     }
 }
 
-/// Locater class to get the ID associated with a key string.
+/// Locator class to get the ID associated with a key string.
 #[derive(Clone)]
-pub struct FcLocater<'a> {
+pub struct FcLocator<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
 }
 
-impl<'a> FcLocater<'a> {
-    /// Makes the locater.
-    pub fn new(dict: &'a FcDict) -> FcLocater<'a> {
-        FcLocater {
+impl<'a> FcLocator<'a> {
+    /// Makes the locator.
+    pub fn new(dict: &'a FcDict) -> FcLocator<'a> {
+        FcLocator {
             dict: dict,
             dec: Vec::with_capacity(dict.max_length()),
         }
@@ -658,15 +669,15 @@ mod tests {
 
         let dict = FcDict::from_builder(builder);
 
-        let mut locater = dict.locater();
+        let mut locator = dict.locator();
         for i in 0..keys.len() {
-            let id = locater.run(keys[i].as_bytes()).unwrap();
+            let id = locator.run(keys[i].as_bytes()).unwrap();
             assert_eq!(i, id);
         }
-        assert!(locater.run("aaa".as_bytes()).is_none());
-        assert!(locater.run("tell".as_bytes()).is_none());
-        assert!(locater.run("techno".as_bytes()).is_none());
-        assert!(locater.run("zzz".as_bytes()).is_none());
+        assert!(locator.run("aaa".as_bytes()).is_none());
+        assert!(locator.run("tell".as_bytes()).is_none());
+        assert!(locator.run("techno".as_bytes()).is_none());
+        assert!(locator.run("zzz".as_bytes()).is_none());
 
         let mut decoder = dict.decoder();
         for i in 0..keys.len() {
@@ -723,9 +734,9 @@ mod tests {
         }
         let dict = FcDict::from_builder(builder);
 
-        let mut locater = dict.locater();
+        let mut locator = dict.locator();
         for i in 0..keys.len() {
-            let id = locater.run(&keys[i]).unwrap();
+            let id = locator.run(&keys[i]).unwrap();
             assert_eq!(i, id);
         }
 

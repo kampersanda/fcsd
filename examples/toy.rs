@@ -27,10 +27,10 @@ fn main() {
 
     // Locates the IDs associated with given keys.
     {
-        let mut locater = dict.locater();
-        assert_eq!(locater.run(keys[1].as_bytes()).unwrap(), 1);
-        assert_eq!(locater.run(keys[7].as_bytes()).unwrap(), 7);
-        assert!(locater.run("techno".as_bytes()).is_none());
+        let mut locator = dict.locator();
+        assert_eq!(locator.run(keys[1].as_bytes()).unwrap(), 1);
+        assert_eq!(locator.run(keys[7].as_bytes()).unwrap(), 7);
+        assert!(locator.run("techno".as_bytes()).is_none());
     }
 
     // Decodes the key strings associated with given IDs.

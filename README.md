@@ -46,22 +46,22 @@ fn main() {
 
     // Locates the IDs associated with given keys.
     {
-        let mut locater = FcLocater::new(&dict);
-        assert_eq!(locater.run(keys[1].as_bytes()).unwrap(), 1);
-        assert_eq!(locater.run(keys[7].as_bytes()).unwrap(), 7);
-        assert!(locater.run("techno".as_bytes()).is_none());
+        let mut locator = dict.locator();
+        assert_eq!(locator.run(keys[1].as_bytes()).unwrap(), 1);
+        assert_eq!(locator.run(keys[7].as_bytes()).unwrap(), 7);
+        assert!(locator.run("techno".as_bytes()).is_none());
     }
 
     // Decodes the key strings associated with given IDs.
     {
-        let mut decoder = FcDecoder::new(&dict);
+        let mut decoder = dict.decoder();
         assert_eq!(&decoder.run(4).unwrap(), keys[4].as_bytes());
         assert_eq!(&decoder.run(9).unwrap(), keys[9].as_bytes());
     }
 
     // Enumerates the stored keys and IDs in lex order.
     {
-        let mut iterator = FcIterator::new(&dict);
+        let mut iterator = dict.iter();
         while let Some((id, dec)) = iterator.next() {
             assert_eq!(keys[id].as_bytes(), &dec);
         }
@@ -69,7 +69,7 @@ fn main() {
 
     // Enumerates the stored keys and IDs, starting with prefix "idea", in lex order.
     {
-        let mut iterator = FcPrefixIterator::new(&dict, "idea".as_bytes());
+        let mut iterator = dict.prefix_iter("idea".as_bytes());
         let (id, dec) = iterator.next().unwrap();
         assert_eq!(1, id);
         assert_eq!("idea".as_bytes(), &dec);
