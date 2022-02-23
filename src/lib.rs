@@ -14,86 +14,6 @@
 //! - **Simple and fast compression.** Fcsd maintains a set of strings in a compressed space through *front-coding*, a differential compression technique for strings, allowing for fast decompression operations.
 //! - **Random access.** Fcsd maintains strings through a bucketization technique enabling to directly decompress arbitrary strings and perform binary search for strings.
 //!
-//! ## Example
-//!
-//! ```rust
-//! use fcsd::*;
-//!
-//! fn main() {
-//!     // Sorted unique input key strings.
-//!     let keys = [
-//!         "deal",       // 0
-//!         "idea",       // 1
-//!         "ideal",      // 2
-//!         "ideas",      // 3
-//!         "ideology",   // 4
-//!         "tea",        // 5
-//!         "techie",     // 6
-//!         "technology", // 7
-//!         "tie",        // 8
-//!         "trie",       // 9
-//!     ];
-//!
-//!     // Builds the FC string dictionary with bucket size 4.
-//!     // Note that the bucket size needs to be a power of two.
-//!     let dict = {
-//!         let mut builder = FcBuilder::new(4).unwrap();
-//!         for &key in &keys {
-//!             builder.add(key.as_bytes()).unwrap();
-//!         }
-//!         FcDict::from_builder(builder)
-//!     };
-//!
-//!     // Locates the IDs associated with given keys.
-//!     {
-//!         let mut locator = dict.locator();
-//!         assert_eq!(locator.run(keys[1].as_bytes()).unwrap(), 1);
-//!         assert_eq!(locator.run(keys[7].as_bytes()).unwrap(), 7);
-//!         assert!(locator.run("techno".as_bytes()).is_none());
-//!     }
-//!
-//!     // Decodes the key strings associated with given IDs.
-//!     {
-//!         let mut decoder = dict.decoder();
-//!         assert_eq!(&decoder.run(4).unwrap(), keys[4].as_bytes());
-//!         assert_eq!(&decoder.run(9).unwrap(), keys[9].as_bytes());
-//!     }
-//!
-//!     // Enumerates the stored keys and IDs in lex order.
-//!     {
-//!         let mut iterator = dict.iter();
-//!         while let Some((id, dec)) = iterator.next() {
-//!             assert_eq!(keys[id].as_bytes(), &dec);
-//!         }
-//!     }
-//!
-//!     // Enumerates the stored keys and IDs, starting with prefix "idea", in lex order.
-//!     {
-//!         let mut iterator = dict.prefix_iter("idea".as_bytes());
-//!         let (id, dec) = iterator.next().unwrap();
-//!         assert_eq!(1, id);
-//!         assert_eq!("idea".as_bytes(), &dec);
-//!         let (id, dec) = iterator.next().unwrap();
-//!         assert_eq!(2, id);
-//!         assert_eq!("ideal".as_bytes(), &dec);
-//!         let (id, dec) = iterator.next().unwrap();
-//!         assert_eq!(3, id);
-//!         assert_eq!("ideas".as_bytes(), &dec);
-//!         assert!(iterator.next().is_none());
-//!     }
-//!
-//!     // Serialization / Deserialization
-//!     {
-//!         let mut bytes = Vec::<u8>::new();
-//!         dict.serialize_into(&mut bytes).unwrap();
-//!         assert_eq!(bytes.len(), dict.serialized_size_in_bytes());
-//!
-//!         let other = FcDict::deserialize_from(&bytes[..]).unwrap();
-//!         assert_eq!(bytes.len(), other.serialized_size_in_bytes());
-//!     }
-//! }
-//! ```
-//!
 //! ## Note
 //!
 //! - Input keys must not contain `\0` character because the character is used for the string delimiter.
@@ -103,6 +23,7 @@ mod utils;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use intvec::IntVector;
+use std::cmp::Ordering;
 use std::io;
 
 const END_MARKER: u8 = 0;
@@ -122,8 +43,8 @@ pub struct FcDict {
 
 impl FcDict {
     /// Builds the dictionary from the given builder.
-    pub fn from_builder(builder: FcBuilder) -> FcDict {
-        FcDict {
+    pub fn from_builder(builder: FcBuilder) -> Self {
+        Self {
             pointers: IntVector::build(&builder.pointers),
             serialized: builder.serialized,
             num_keys: builder.num_keys,
@@ -158,7 +79,7 @@ impl FcDict {
     }
 
     /// Deserializes the dictionary.
-    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<FcDict> {
+    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<Self> {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
             return Err(io::Error::new(io::ErrorKind::Other, "unknown cookie value"));
@@ -167,8 +88,8 @@ impl FcDict {
         let serialized = {
             let len = reader.read_u64::<LittleEndian>()? as usize;
             let mut serialized = vec![0; len];
-            for i in 0..len {
-                serialized[i] = reader.read_u8()?;
+            for x in serialized.iter_mut() {
+                *x = reader.read_u8()?;
             }
             serialized
         };
@@ -178,13 +99,13 @@ impl FcDict {
         let bucket_mask = reader.read_u64::<LittleEndian>()? as usize;
         let max_length = reader.read_u64::<LittleEndian>()? as usize;
 
-        Ok(FcDict {
-            pointers: pointers,
-            serialized: serialized,
-            num_keys: num_keys,
-            bucket_bits: bucket_bits,
-            bucket_mask: bucket_mask,
-            max_length: max_length,
+        Ok(Self {
+            pointers,
+            serialized,
+            num_keys,
+            bucket_bits,
+            bucket_mask,
+            max_length,
         })
     }
 
@@ -209,35 +130,35 @@ impl FcDict {
     }
 
     /// Gets the number of stored keys.
-    pub fn num_keys(&self) -> usize {
+    pub const fn num_keys(&self) -> usize {
         self.num_keys
     }
 
     /// Gets the number of defined buckets.
-    pub fn num_buckets(&self) -> usize {
+    pub const fn num_buckets(&self) -> usize {
         self.pointers.len()
     }
 
     /// Gets the bucket size.
-    pub fn bucket_size(&self) -> usize {
+    pub const fn bucket_size(&self) -> usize {
         self.bucket_mask + 1
     }
 
-    fn max_length(&self) -> usize {
+    const fn max_length(&self) -> usize {
         self.max_length
     }
 
-    fn bucket_id(&self, id: usize) -> usize {
+    const fn bucket_id(&self, id: usize) -> usize {
         id >> self.bucket_bits
     }
 
-    fn pos_in_bucket(&self, id: usize) -> usize {
+    const fn pos_in_bucket(&self, id: usize) -> usize {
         id & self.bucket_mask
     }
 
     fn get_header(&self, bi: usize) -> &[u8] {
         let header = &self.serialized[self.pointers.get(bi) as usize..];
-        &header[..utils::get_strlen(&header)]
+        &header[..utils::get_strlen(header)]
     }
 
     fn decode_header(&self, bi: usize, dec: &mut Vec<u8>) -> usize {
@@ -269,12 +190,10 @@ impl FcDict {
         while lo < hi {
             mi = (lo + hi) / 2;
             cmp = utils::get_lcp(key, self.get_header(mi)).1;
-            if cmp < 0 {
-                lo = mi + 1;
-            } else if cmp > 0 {
-                hi = mi;
-            } else {
-                return (mi, true);
+            match cmp.cmp(&0) {
+                Ordering::Less => lo = mi + 1,
+                Ordering::Greater => hi = mi,
+                Ordering::Equal => return (mi, true),
             }
         }
         if cmp < 0 || mi == 0 {
@@ -300,13 +219,13 @@ pub struct FcBuilder {
 impl FcBuilder {
     /// Makes the builder with the given bucket size.
     /// The bucket size needs to be a power of two.
-    pub fn new(bucket_size: usize) -> Result<FcBuilder, String> {
+    pub fn new(bucket_size: usize) -> Result<Self, String> {
         if bucket_size == 0 {
             Err("bucket_size is zero.".to_owned())
         } else if !utils::is_power_of_two(bucket_size) {
             Err("bucket_size is not a power of two.".to_owned())
         } else {
-            Ok(FcBuilder {
+            Ok(Self {
                 pointers: Vec::new(),
                 serialized: Vec::new(),
                 last_key: Vec::new(),
@@ -333,13 +252,12 @@ impl FcBuilder {
 
         if self.num_keys & self.bucket_mask == 0 {
             self.pointers.push(self.serialized.len() as u64);
-            self.serialized.extend_from_slice(&key);
-            self.serialized.push(END_MARKER);
+            self.serialized.extend_from_slice(key);
         } else {
             utils::vbyte::append(&mut self.serialized, lcp);
             self.serialized.extend_from_slice(&key[lcp..]);
-            self.serialized.push(END_MARKER);
         }
+        self.serialized.push(END_MARKER);
 
         self.last_key.resize(key.len(), 0);
         self.last_key.copy_from_slice(key);
@@ -361,7 +279,7 @@ impl<'a> FcLocator<'a> {
     /// Makes the locator.
     pub fn new(dict: &'a FcDict) -> FcLocator<'a> {
         FcLocator {
-            dict: dict,
+            dict,
             dec: Vec::with_capacity(dict.max_length()),
         }
     }
@@ -392,11 +310,13 @@ impl<'a> FcLocator<'a> {
             pos = dict.decode_next(pos, dec);
         }
 
-        let (mut lcp, cmp) = utils::get_lcp(key, &dec);
-        if cmp == 0 {
-            return Some(bi * dict.bucket_size() + 1);
-        } else if cmp > 0 {
-            return None;
+        let (mut lcp, cmp) = utils::get_lcp(key, dec);
+        match cmp.cmp(&0) {
+            Ordering::Equal => {
+                return Some(bi * dict.bucket_size() + 1);
+            }
+            Ordering::Greater => return None,
+            _ => {}
         }
 
         // 2) Process the next strings
@@ -416,11 +336,13 @@ impl<'a> FcLocator<'a> {
             pos = dict.decode_next(pos, dec);
 
             if lcp == dec_lcp {
-                let (next_lcp, cmp) = utils::get_lcp(key, &dec);
-                if cmp == 0 {
-                    return Some(bi * dict.bucket_size() + bj);
-                } else if cmp > 0 {
-                    break;
+                let (next_lcp, cmp) = utils::get_lcp(key, dec);
+                match cmp.cmp(&0) {
+                    Ordering::Equal => {
+                        return Some(bi * dict.bucket_size() + bj);
+                    }
+                    Ordering::Greater => break,
+                    _ => {}
                 }
                 lcp = next_lcp;
             }
@@ -441,7 +363,7 @@ impl<'a> FcDecoder<'a> {
     /// Makes the decoder.
     pub fn new(dict: &'a FcDict) -> FcDecoder<'a> {
         FcDecoder {
-            dict: dict,
+            dict,
             dec: Vec::with_capacity(dict.max_length()),
         }
     }
@@ -481,7 +403,7 @@ impl<'a> FcIterator<'a> {
     /// Makes the iterator.
     pub fn new(dict: &'a FcDict) -> FcIterator<'a> {
         FcIterator {
-            dict: dict,
+            dict,
             dec: Vec::with_capacity(dict.max_length()),
             pos: 0,
             id: 0,
@@ -498,13 +420,12 @@ impl<'a> Iterator for FcIterator<'a> {
         }
         if self.dict.pos_in_bucket(self.id) == 0 {
             self.dec.clear();
-            self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         } else {
             let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
             self.pos = next_pos;
             self.dec.resize(lcp, 0);
-            self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         }
+        self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         self.id += 1;
         Some((self.id - 1, self.dec.clone()))
     }
@@ -528,8 +449,8 @@ impl<'a> FcPrefixIterator<'a> {
     /// Makes the iterator with the prefix key.
     pub fn new(dict: &'a FcDict, key: &'a [u8]) -> FcPrefixIterator<'a> {
         FcPrefixIterator {
-            key: key,
-            dict: dict,
+            key,
+            dict,
             dec: Vec::with_capacity(dict.max_length()),
             pos: 0,
             id: 0,
@@ -557,7 +478,7 @@ impl<'a> FcPrefixIterator<'a> {
         self.pos = dict.decode_header(bi, dec);
         self.id = bi * dict.bucket_size();
 
-        if found || utils::is_prefix(self.key, &dec) {
+        if found || utils::is_prefix(self.key, dec) {
             return true;
         }
 
@@ -571,7 +492,7 @@ impl<'a> FcPrefixIterator<'a> {
             dec.resize(lcp, 0);
             self.pos = dict.decode_next(self.pos, dec);
 
-            if utils::is_prefix(self.key, &dec) {
+            if utils::is_prefix(self.key, dec) {
                 self.id += bj;
                 return true;
             }
@@ -600,13 +521,12 @@ impl<'a> Iterator for FcPrefixIterator<'a> {
             self.id += 1;
             if self.dict.pos_in_bucket(self.id) == 0 {
                 self.dec.clear();
-                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
             } else {
                 let (lcp, next_pos) = self.dict.decode_lcp(self.pos);
                 self.pos = next_pos;
                 self.dec.resize(lcp, 0);
-                self.pos = self.dict.decode_next(self.pos, &mut self.dec);
             }
+            self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         }
 
         if utils::is_prefix(self.key, &self.dec) {

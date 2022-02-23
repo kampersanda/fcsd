@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::END_MARKER;
 
 /// Returns (lcp, cmp) such that
@@ -10,13 +12,19 @@ pub fn get_lcp(a: &[u8], b: &[u8]) -> (usize, isize) {
             return (i, b[i] as isize - a[i] as isize);
         }
     }
-    if a.len() < b.len() {
-        (min_len, 1)
-    } else if b.len() < a.len() {
-        (min_len, -1)
-    } else {
-        (min_len, 0)
+    match a.len().cmp(&b.len()) {
+        Ordering::Less => (min_len, 1),
+        Ordering::Greater => (min_len, -1),
+        Ordering::Equal => (min_len, 0),
     }
+
+    // if a.len() < b.len() {
+    //     (min_len, 1)
+    // } else if b.len() < a.len() {
+    //     (min_len, -1)
+    // } else {
+    //     (min_len, 0)
+    // }
 }
 
 pub fn get_strlen(a: &[u8]) -> usize {
@@ -38,7 +46,7 @@ pub fn is_prefix(a: &[u8], b: &[u8]) -> bool {
 
 /// Checks if END_MARKER is contained.
 pub fn contains_end_marker(a: &[u8]) -> bool {
-    a.iter().find(|&c| *c == END_MARKER).is_some()
+    a.iter().any(|&c| c == END_MARKER)
 }
 
 pub fn is_power_of_two(x: usize) -> bool {
@@ -46,7 +54,7 @@ pub fn is_power_of_two(x: usize) -> bool {
     (x & (x - 1)) == 0
 }
 
-pub fn needed_bits(mut x: u64) -> usize {
+pub const fn needed_bits(mut x: u64) -> usize {
     if x == 0 {
         return 1;
     }
@@ -66,7 +74,7 @@ pub mod vbyte {
         }
         bytes.push((val & 127) as u8);
     }
-    pub fn decode(bytes: &[u8]) -> (usize, usize) {
+    pub const fn decode(bytes: &[u8]) -> (usize, usize) {
         let mut val = 0;
         let (mut i, mut j) = (0, 0);
         while (bytes[i] & 0x80) != 0 {

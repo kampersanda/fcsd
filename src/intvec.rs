@@ -11,29 +11,29 @@ pub struct IntVector {
 }
 
 impl IntVector {
-    pub fn build(input: &[u64]) -> IntVector {
+    pub fn build(input: &[u64]) -> Self {
         let len = input.len();
         let bits = utils::needed_bits(*input.iter().max().unwrap());
         let mask = (1 << bits) - 1;
 
         let mut chunks = vec![0; words_for(len * bits)];
 
-        for i in 0..len {
+        for (i, &x) in input.iter().enumerate() {
             let (q, m) = decompose(i * bits);
             chunks[q] &= !(mask << m);
-            chunks[q] |= (input[i] & mask) << m;
+            chunks[q] |= (x & mask) << m;
             if 64 < m + bits {
                 let diff = 64 - m;
                 chunks[q + 1] &= !(mask >> diff);
-                chunks[q + 1] |= (input[i] & mask) >> diff;
+                chunks[q + 1] |= (x & mask) >> diff;
             }
         }
 
-        IntVector {
-            chunks: chunks,
-            len: len,
-            bits: bits,
-            mask: mask,
+        Self {
+            chunks,
+            len,
+            bits,
+            mask,
         }
     }
 
@@ -46,7 +46,7 @@ impl IntVector {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.len
     }
 
@@ -65,31 +65,31 @@ impl IntVector {
         Ok(())
     }
 
-    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<IntVector> {
+    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<Self> {
         let chunks = {
             let len = reader.read_u64::<LittleEndian>()? as usize;
             let mut chunks = vec![0; len];
-            for i in 0..len {
-                chunks[i] = reader.read_u64::<LittleEndian>()?;
+            for x in chunks.iter_mut() {
+                *x = reader.read_u64::<LittleEndian>()?;
             }
             chunks
         };
         let len = reader.read_u64::<LittleEndian>()? as usize;
         let bits = reader.read_u64::<LittleEndian>()? as usize;
         let mask = reader.read_u64::<LittleEndian>()?;
-        Ok(IntVector {
-            chunks: chunks,
-            len: len,
-            bits: bits,
-            mask: mask,
+        Ok(Self {
+            chunks,
+            len,
+            bits,
+            mask,
         })
     }
 }
 
-fn words_for(bits: usize) -> usize {
+const fn words_for(bits: usize) -> usize {
     (bits + 63) / 64
 }
 
-fn decompose(x: usize) -> (usize, usize) {
+const fn decompose(x: usize) -> (usize, usize) {
     (x / 64, x % 64)
 }
