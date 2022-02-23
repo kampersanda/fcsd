@@ -17,14 +17,6 @@ pub fn get_lcp(a: &[u8], b: &[u8]) -> (usize, isize) {
         Ordering::Greater => (min_len, -1),
         Ordering::Equal => (min_len, 0),
     }
-
-    // if a.len() < b.len() {
-    //     (min_len, 1)
-    // } else if b.len() < a.len() {
-    //     (min_len, -1)
-    // } else {
-    //     (min_len, 0)
-    // }
 }
 
 pub fn get_strlen(a: &[u8]) -> usize {

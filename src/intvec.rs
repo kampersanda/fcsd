@@ -16,10 +16,10 @@ impl IntVector {
         let bits = utils::needed_bits(*input.iter().max().unwrap());
         let mask = (1 << bits) - 1;
 
-        let mut chunks = vec![0; words_for(len * bits)];
+        let mut chunks = vec![0; Self::words_for(len * bits)];
 
         for (i, &x) in input.iter().enumerate() {
-            let (q, m) = decompose(i * bits);
+            let (q, m) = Self::decompose(i * bits);
             chunks[q] &= !(mask << m);
             chunks[q] |= (x & mask) << m;
             if 64 < m + bits {
@@ -38,7 +38,7 @@ impl IntVector {
     }
 
     pub fn get(&self, i: usize) -> u64 {
-        let (q, m) = decompose(i * self.bits);
+        let (q, m) = Self::decompose(i * self.bits);
         if m + self.bits <= 64 {
             (self.chunks[q] >> m) & self.mask
         } else {
@@ -84,12 +84,12 @@ impl IntVector {
             mask,
         })
     }
-}
 
-const fn words_for(bits: usize) -> usize {
-    (bits + 63) / 64
-}
+    const fn words_for(bits: usize) -> usize {
+        (bits + 63) / 64
+    }
 
-const fn decompose(x: usize) -> (usize, usize) {
-    (x / 64, x % 64)
+    const fn decompose(x: usize) -> (usize, usize) {
+        (x / 64, x % 64)
+    }
 }
