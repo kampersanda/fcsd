@@ -22,7 +22,7 @@ fn main() {
         for &key in &keys {
             builder.add(key.as_bytes()).unwrap();
         }
-        FcDict::from_builder(builder)
+        builder.finish()
     };
 
     // Locates the IDs associated with given keys.
