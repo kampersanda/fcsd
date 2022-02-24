@@ -41,8 +41,52 @@ pub use prefix_iter::FcPrefixIterator;
 const END_MARKER: u8 = 0;
 const SERIAL_COOKIE: u32 = 114514;
 
-/// Front-coding string dictionary that provides a bijection between strings and interger IDs.
-/// Let n be the number of strings, the integer IDs are in [0..n-1] and assigned in the lex order.
+/// Fast and compact front-coding string dictionary.
+///
+/// This provides a bijection between key strings and interger IDs.
+/// Let `n` be the number of keys, integer IDs from `[0..n-1]` are assigned in the lex order.
+///
+/// # Example
+///
+/// ```
+/// use fcsd::FcBuilder;
+///
+/// // Input key strings should be sorted and unique.
+/// let keys = [
+///     "deal",       // 0
+///     "idea",       // 1
+///     "ideal",      // 2
+///     "ideas",      // 3
+///     "ideology",   // 4
+///     "tea",        // 5
+///     "techie",     // 6
+///     "technology", // 7
+///     "tie",        // 8
+///     "trie",       // 9
+/// ];
+///
+/// // Builds the dictionary with bucket size 4.
+/// // Note that the bucket size needs to be a power of two.
+/// let dict = {
+///     let mut builder = FcBuilder::new(4).unwrap();
+///     for &key in &keys {
+///         builder.add(key.as_bytes()).unwrap();
+///     }
+///     builder.finish()
+/// };
+///
+/// // Locates the IDs associated with given keys.
+/// let mut locator = dict.locator();
+/// assert_eq!(locator.run(b"idea"), Some(1));
+/// assert_eq!(locator.run(b"technology"), Some(7));
+/// assert_eq!(locator.run(b"techno"), None);
+///
+/// // Decodes the key strings associated with given IDs.
+/// let mut decoder = dict.decoder();
+/// assert_eq!(decoder.run(4), Some(b"ideology".to_vec()));
+/// assert_eq!(decoder.run(9), Some(b"trie".to_vec()));
+/// assert_eq!(decoder.run(10), None);
+/// ```
 #[derive(Clone)]
 pub struct FcDict {
     pointers: IntVector,
