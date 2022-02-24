@@ -1,3 +1,5 @@
+use anyhow::{anyhow, Result};
+
 use crate::intvec::IntVector;
 use crate::utils;
 use crate::FcDict;
@@ -18,11 +20,11 @@ pub struct FcBuilder {
 impl FcBuilder {
     /// Makes the builder with the given bucket size.
     /// The bucket size needs to be a power of two.
-    pub fn new(bucket_size: usize) -> Result<Self, String> {
+    pub fn new(bucket_size: usize) -> Result<Self> {
         if bucket_size == 0 {
-            Err("bucket_size is zero.".to_owned())
+            Err(anyhow!("bucket_size must not be zero."))
         } else if !utils::is_power_of_two(bucket_size) {
-            Err("bucket_size is not a power of two.".to_owned())
+            Err(anyhow!("bucket_size must be a power of two."))
         } else {
             Ok(Self {
                 pointers: Vec::new(),
@@ -39,14 +41,17 @@ impl FcBuilder {
     /// Adds the given key string to the dictionary.
     /// The keys have to be given in the lex order.
     /// The key must not contain the 0 value.
-    pub fn add(&mut self, key: &[u8]) -> Result<(), String> {
+    pub fn add(&mut self, key: &[u8]) -> Result<()> {
         if utils::contains_end_marker(key) {
-            return Err("The input key contains END_MARKER.".to_owned());
+            return Err(anyhow!(
+                "The input key must not contain END_MARKER (={}).",
+                END_MARKER
+            ));
         }
 
         let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
         if cmp <= 0 {
-            return Err("The input key is less than the previous one.".to_owned());
+            return Err(anyhow!("The input key must be more than the last one.",));
         }
 
         if self.num_keys & self.bucket_mask == 0 {

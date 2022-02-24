@@ -26,6 +26,7 @@ pub mod locator;
 pub mod prefix_iter;
 mod utils;
 
+use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use intvec::IntVector;
 use std::cmp::Ordering;
@@ -63,7 +64,7 @@ impl FcDict {
     }
 
     /// Serializes the dictionary.
-    pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
+    pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
         self.pointers.serialize_into(&mut writer)?;
         writer.write_u64::<LittleEndian>(self.serialized.len() as u64)?;
@@ -78,10 +79,10 @@ impl FcDict {
     }
 
     /// Deserializes the dictionary.
-    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<Self> {
+    pub fn deserialize_from<R: io::Read>(mut reader: R) -> Result<Self> {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
-            return Err(io::Error::new(io::ErrorKind::Other, "unknown cookie value"));
+            return Err(anyhow!("unknown cookie value"));
         }
         let pointers = IntVector::deserialize_from(&mut reader)?;
         let serialized = {
