@@ -49,7 +49,7 @@ const SERIAL_COOKIE: u32 = 114514;
 /// # Example
 ///
 /// ```
-/// use fcsd::FcBuilder;
+/// use fcsd::FcDict;
 ///
 /// // Input key strings should be sorted and unique.
 /// let keys = [
@@ -67,13 +67,8 @@ const SERIAL_COOKIE: u32 = 114514;
 ///
 /// // Builds the dictionary with bucket size 4.
 /// // Note that the bucket size needs to be a power of two.
-/// let dict = {
-///     let mut builder = FcBuilder::new(4).unwrap();
-///     for &key in &keys {
-///         builder.add(key.as_bytes()).unwrap();
-///     }
-///     builder.finish()
-/// };
+/// let dict = FcDict::new(keys, 4).unwrap();
+/// assert_eq!(dict.num_keys(), keys.len());
 ///
 /// // Locates the IDs associated with given keys.
 /// let mut locator = dict.locator();
@@ -98,6 +93,18 @@ pub struct FcDict {
 }
 
 impl FcDict {
+    pub fn new<I, P>(keys: I, bucket_size: usize) -> Result<Self>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<[u8]>,
+    {
+        let mut builder = FcBuilder::new(bucket_size)?;
+        for key in keys {
+            builder.add(key.as_ref())?;
+        }
+        Ok(builder.finish())
+    }
+
     /// Returns the number of bytes needed to write the dictionary.
     pub fn serialized_size_in_bytes(&self) -> usize {
         let mut bytes = 0;
@@ -154,6 +161,12 @@ impl FcDict {
     }
 
     /// Makes the locator.
+    ///
+    /// # Example
+    ///
+    /// ```
+    ///
+    /// ```
     pub fn locator(&self) -> FcLocator {
         FcLocator::new(self)
     }
