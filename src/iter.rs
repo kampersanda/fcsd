@@ -11,8 +11,8 @@ pub struct FcIterator<'a> {
 
 impl<'a> FcIterator<'a> {
     /// Makes the iterator.
-    pub fn new(dict: &'a FcDict) -> FcIterator<'a> {
-        FcIterator {
+    pub fn new(dict: &'a FcDict) -> Self {
+        Self {
             dict,
             dec: Vec::with_capacity(dict.max_length()),
             pos: 0,

@@ -13,8 +13,8 @@ pub struct FcPrefixIterator<'a> {
 
 impl<'a> FcPrefixIterator<'a> {
     /// Makes the iterator with the prefix key.
-    pub fn new(dict: &'a FcDict, key: &'a [u8]) -> FcPrefixIterator<'a> {
-        FcPrefixIterator {
+    pub fn new(dict: &'a FcDict, key: &'a [u8]) -> Self {
+        Self {
             key,
             dict,
             dec: Vec::with_capacity(dict.max_length()),

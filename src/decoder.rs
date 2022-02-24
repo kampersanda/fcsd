@@ -10,8 +10,8 @@ pub struct FcDecoder<'a> {
 
 impl<'a> FcDecoder<'a> {
     /// Makes the decoder.
-    pub fn new(dict: &'a FcDict) -> FcDecoder<'a> {
-        FcDecoder {
+    pub fn new(dict: &'a FcDict) -> Self {
+        Self {
             dict,
             dec: Vec::with_capacity(dict.max_length()),
         }
