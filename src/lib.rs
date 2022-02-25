@@ -26,14 +26,15 @@ pub mod locator;
 pub mod prefix_iter;
 mod utils;
 
-use anyhow::{anyhow, Result};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use intvec::IntVector;
 use std::cmp::Ordering;
 use std::io;
 
+use anyhow::{anyhow, Result};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+
 pub use builder::FcBuilder;
 pub use decoder::FcDecoder;
+use intvec::IntVector;
 pub use iter::FcIterator;
 pub use locator::FcLocator;
 pub use prefix_iter::FcPrefixIterator;
