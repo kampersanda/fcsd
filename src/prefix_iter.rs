@@ -33,7 +33,7 @@ impl<'a> FcPrefixIterator<'a> {
     /// # Arguments
     ///
     ///  - `key`: Prefix key.
-    pub fn init_key(&mut self, key: &'a [u8]) {
+    pub fn reset(&mut self, key: &'a [u8]) {
         self.key = key;
         self.dec.clear();
         self.pos = 0;
