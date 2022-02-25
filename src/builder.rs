@@ -5,7 +5,7 @@ use crate::utils;
 use crate::FcDict;
 use crate::END_MARKER;
 
-/// Builder class of front-coding string dictionary.
+/// Builder class for [`FcDict`].
 #[derive(Clone)]
 pub struct FcBuilder {
     pointers: Vec<u64>,
@@ -18,8 +18,18 @@ pub struct FcBuilder {
 }
 
 impl FcBuilder {
-    /// Makes the builder with the given bucket size.
-    /// The bucket size needs to be a power of two.
+    /// Creates a [`FcBuilder`] with the given bucket size.
+    ///
+    /// # Arguments
+    ///
+    ///  - `bucket_size`: The number of strings in each bucket, which must be a power of two.
+    ///
+    /// # Errors
+    ///
+    /// [`anyhow::Result`] will be returned when
+    ///
+    ///  - `bucket_size` is zero, or
+    ///  - `bucket_size` is not a power of two.
     pub fn new(bucket_size: usize) -> Result<Self> {
         if bucket_size == 0 {
             Err(anyhow!("bucket_size must not be zero."))
@@ -38,9 +48,18 @@ impl FcBuilder {
         }
     }
 
-    /// Adds the given key string to the dictionary.
-    /// The keys have to be given in the lex order.
-    /// The key must not contain the 0 value.
+    /// Pushes a key back to the dictionary.
+    ///
+    /// # Arguments
+    ///
+    ///  - `key`: String key to be added.
+    ///
+    /// # Errors
+    ///
+    /// [`anyhow::Result`] will be returned when
+    ///
+    ///  - `key` is no more than the last one, or
+    ///  - `key` contains [`END_MARKER`].
     pub fn add(&mut self, key: &[u8]) -> Result<()> {
         if utils::contains_end_marker(key) {
             return Err(anyhow!(
@@ -71,6 +90,7 @@ impl FcBuilder {
         Ok(())
     }
 
+    /// Builds and returns the dictionary.
     pub fn finish(self) -> FcDict {
         FcDict {
             pointers: IntVector::build(&self.pointers),

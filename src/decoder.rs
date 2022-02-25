@@ -29,7 +29,7 @@ impl<'a> FcDecoder<'a> {
     ///
     /// # Panics
     ///
-    ///  - If `id` is no less than the number of keys, `panic!` will occur.
+    /// If `id` is no less than the number of keys, `panic!` will occur.
     ///
     /// # Complexity
     ///

@@ -38,7 +38,9 @@ pub use iter::FcIterator;
 pub use locator::FcLocator;
 pub use prefix_iter::FcPrefixIterator;
 
-const END_MARKER: u8 = 0;
+/// Special terminator, which must not be contained in stored keys.
+pub const END_MARKER: u8 = 0;
+
 const SERIAL_COOKIE: u32 = 114514;
 
 /// Fast and compact front-coding string dictionary.
@@ -100,7 +102,7 @@ impl FcDict {
     /// # Arguments
     ///
     ///  - `keys`: string keys that are unique and sorted.
-    ///  - `bucket_size`: The number of strings in each bucket, which needs to be a power of two.
+    ///  - `bucket_size`: The number of strings in each bucket, which must be a power of two.
     ///
     /// # Example
     ///
