@@ -43,44 +43,46 @@ const SERIAL_COOKIE: u32 = 114514;
 
 /// Fast and compact front-coding string dictionary.
 ///
-/// This provides a bijection between key strings and interger IDs.
-/// Let `n` be the number of keys, integer IDs from `[0..n-1]` are assigned in the lex order.
+/// This provides a bijection between string keys and interger IDs.
+/// Integer IDs from `[0..n-1]` are assigned to `n` keys in the lexicographical order.
 ///
 /// # Example
 ///
 /// ```
 /// use fcsd::FcDict;
 ///
-/// // Input key strings should be sorted and unique.
-/// let keys = [
-///     "deal",       // 0
-///     "idea",       // 1
-///     "ideal",      // 2
-///     "ideas",      // 3
-///     "ideology",   // 4
-///     "tea",        // 5
-///     "techie",     // 6
-///     "technology", // 7
-///     "tie",        // 8
-///     "trie",       // 9
-/// ];
+/// // Input string keys should be sorted and unique.
+/// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
 ///
 /// // Builds the dictionary with bucket size 4.
 /// // Note that the bucket size needs to be a power of two.
 /// let dict = FcDict::new(keys, 4).unwrap();
 /// assert_eq!(dict.num_keys(), keys.len());
 ///
-/// // Locates the IDs associated with given keys.
+/// // Locates IDs associated with given keys.
 /// let mut locator = dict.locator();
-/// assert_eq!(locator.run(b"idea"), Some(1));
-/// assert_eq!(locator.run(b"technology"), Some(7));
-/// assert_eq!(locator.run(b"techno"), None);
+/// assert_eq!(locator.run(b"ICML"), Some(1));
+/// assert_eq!(locator.run(b"SIGMOD"), Some(4));
+/// assert_eq!(locator.run(b"SIGSPATIAL"), None);
 ///
-/// // Decodes the key strings associated with given IDs.
+/// // Decodes string keys associated with given IDs.
 /// let mut decoder = dict.decoder();
-/// assert_eq!(decoder.run(4), Some(b"ideology".to_vec()));
-/// assert_eq!(decoder.run(9), Some(b"trie".to_vec()));
-/// assert_eq!(decoder.run(10), None);
+/// assert_eq!(decoder.run(0), b"ICDM".to_vec());
+/// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
+///
+/// // Enumerates string keys starting with a prefix.
+/// let mut iter = dict.prefix_iter(b"SIG");
+/// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
+/// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
+/// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
+/// assert_eq!(iter.next(), None);
+///
+/// // Serialization / Deserialization
+/// let mut data = Vec::<u8>::new();
+/// dict.serialize_into(&mut data).unwrap();
+/// assert_eq!(data.len(), dict.size_in_bytes());
+/// let other = FcDict::deserialize_from(&data[..]).unwrap();
+/// assert_eq!(data.len(), other.size_in_bytes());
 /// ```
 #[derive(Clone)]
 pub struct FcDict {
@@ -93,6 +95,22 @@ pub struct FcDict {
 }
 
 impl FcDict {
+    /// Builds a new [`FcDict`] from string keys.
+    ///
+    /// # Arguments
+    ///
+    ///  - `keys`: string keys that are unique and sorted.
+    ///  - `bucket_size`: The number of strings in each bucket, which needs to be a power of two.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// assert_eq!(dict.num_keys(), keys.len());
+    /// ```
     pub fn new<I, P>(keys: I, bucket_size: usize) -> Result<Self>
     where
         I: IntoIterator<Item = P>,
@@ -106,15 +124,42 @@ impl FcDict {
     }
 
     /// Returns the number of bytes needed to write the dictionary.
-    pub fn serialized_size_in_bytes(&self) -> usize {
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// assert_eq!(dict.size_in_bytes(), 112);
+    /// ```
+    pub fn size_in_bytes(&self) -> usize {
         let mut bytes = 0;
         bytes += 4; // SERIAL_COOKIE
-        bytes += self.pointers.serialized_size_in_bytes(); // pointers
+        bytes += self.pointers.size_in_bytes(); // pointers
         bytes += 8 + self.serialized.len(); // serialized
         bytes + 8 * 4
     }
 
-    /// Serializes the dictionary.
+    /// Serializes the dictionary into a writer.
+    ///
+    /// # Arguments
+    ///
+    ///  - `writer`: Writable stream.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    ///
+    /// let mut data = Vec::<u8>::new();
+    /// dict.serialize_into(&mut data).unwrap();
+    /// assert_eq!(data.len(), 112);
+    /// ```
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
         self.pointers.serialize_into(&mut writer)?;
@@ -129,7 +174,25 @@ impl FcDict {
         Ok(())
     }
 
-    /// Deserializes the dictionary.
+    /// Deserializes the dictionary from a reader.
+    ///
+    /// # Arguments
+    ///
+    ///  - `reader`: Readable stream.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    ///
+    /// let mut data = Vec::<u8>::new();
+    /// dict.serialize_into(&mut data).unwrap();
+    /// let other = FcDict::deserialize_from(&data[..]).unwrap();
+    /// assert_eq!(dict.size_in_bytes(), other.size_in_bytes());
+    /// ```
     pub fn deserialize_from<R: io::Read>(mut reader: R) -> Result<Self> {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
@@ -160,43 +223,132 @@ impl FcDict {
         })
     }
 
-    /// Makes the locator.
+    /// Makes a class to get ids of given string keys.
     ///
     /// # Example
     ///
     /// ```
+    /// use fcsd::FcDict;
     ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    ///
+    /// let mut locator = dict.locator();
+    /// assert_eq!(locator.run(b"ICML"), Some(1));
+    /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
+    /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
     /// ```
     pub fn locator(&self) -> FcLocator {
         FcLocator::new(self)
     }
 
-    /// Makes the decoder.
+    /// Makes a class to decode stored keys associated with given ids.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    ///
+    /// let mut decoder = dict.decoder();
+    /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
+    /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
+    /// ```
     pub fn decoder(&self) -> FcDecoder {
         FcDecoder::new(self)
     }
 
-    /// Makes the iterator.
+    /// Makes an iterator to enumerate keys stored in the dictionary.
+    ///
+    /// The keys will be reported in the lexicographical order.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR"];
+    /// let dict = FcDict::new(keys, 2).unwrap();
+    ///
+    /// let mut iter = dict.iter();
+    /// assert_eq!(iter.next(), Some((0, b"ICDM".to_vec())));
+    /// assert_eq!(iter.next(), Some((1, b"ICML".to_vec())));
+    /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
+    /// assert_eq!(iter.next(), None);
+    /// ```
     pub fn iter(&self) -> FcIterator {
         FcIterator::new(self)
     }
 
-    /// Makes the prefix iterator.
-    pub fn prefix_iter<'a>(&'a self, key: &'a [u8]) -> FcPrefixIterator {
-        FcPrefixIterator::new(self, key)
+    /// Makes an iterator to enumerate keys starting from a given string.
+    ///
+    /// The keys will be reported in the lexicographical order.
+    ///
+    /// # Arguments
+    ///
+    ///  - `prefix`: Prefix of keys to be enumerated.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    ///
+    /// let mut iter = dict.prefix_iter(b"SIG");
+    /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
+    /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
+    /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    pub fn prefix_iter<'a>(&'a self, prefix: &'a [u8]) -> FcPrefixIterator {
+        FcPrefixIterator::new(self, prefix)
     }
 
     /// Gets the number of stored keys.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// assert_eq!(dict.num_keys(), keys.len());
+    /// ```
     pub const fn num_keys(&self) -> usize {
         self.num_keys
     }
 
     /// Gets the number of defined buckets.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// assert_eq!(dict.num_buckets(), 2);
+    /// ```
     pub const fn num_buckets(&self) -> usize {
         self.pointers.len()
     }
 
     /// Gets the bucket size.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// assert_eq!(dict.bucket_size(), 4);
+    /// ```
     pub const fn bucket_size(&self) -> usize {
         self.bucket_mask + 1
     }
@@ -318,7 +470,7 @@ mod tests {
 
         let mut decoder = dict.decoder();
         for i in 0..keys.len() {
-            assert_eq!(keys[i].as_bytes(), &decoder.run(i).unwrap());
+            assert_eq!(keys[i].as_bytes(), &decoder.run(i));
         }
 
         let mut iterator = dict.iter();
@@ -349,7 +501,7 @@ mod tests {
 
         let mut buffer = vec![];
         dict.serialize_into(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
+        assert_eq!(buffer.len(), dict.size_in_bytes());
 
         let other = FcDict::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
@@ -379,7 +531,7 @@ mod tests {
 
         let mut decoder = dict.decoder();
         for i in 0..keys.len() {
-            let dec = decoder.run(i).unwrap();
+            let dec = decoder.run(i);
             assert_eq!(&keys[i], &dec);
         }
 
@@ -393,7 +545,7 @@ mod tests {
 
         let mut buffer = vec![];
         dict.serialize_into(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), dict.serialized_size_in_bytes());
+        assert_eq!(buffer.len(), dict.size_in_bytes());
 
         let other = FcDict::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();

@@ -50,7 +50,7 @@ impl IntVector {
         self.len
     }
 
-    pub fn serialized_size_in_bytes(&self) -> usize {
+    pub fn size_in_bytes(&self) -> usize {
         8 + self.chunks.len() * 8 + 8 * 3
     }
 

@@ -1,7 +1,7 @@
 use crate::utils;
 use crate::FcDict;
 
-/// Iterator class to enumerate the stored keys and IDs in lex order, starting with a prefix.
+/// Iterator to enumerate keys starting from a given string.
 #[derive(Clone)]
 pub struct FcPrefixIterator<'a> {
     dict: &'a FcDict,
@@ -12,7 +12,12 @@ pub struct FcPrefixIterator<'a> {
 }
 
 impl<'a> FcPrefixIterator<'a> {
-    /// Makes the iterator with the prefix key.
+    /// Makes an iterator [`FcPrefixIterator`].
+    ///
+    /// # Arguments
+    ///
+    ///  - `dict`: Front-coding dictionay.
+    ///  - `key`: Prefix key.
     pub fn new(dict: &'a FcDict, key: &'a [u8]) -> Self {
         Self {
             key,
@@ -23,7 +28,11 @@ impl<'a> FcPrefixIterator<'a> {
         }
     }
 
-    /// Inits the prefix key.
+    /// Resets the prefix key.
+    ///
+    /// # Arguments
+    ///
+    ///  - `key`: Prefix key.
     pub fn init_key(&mut self, key: &'a [u8]) {
         self.key = key;
         self.dec.clear();

@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use crate::utils;
 use crate::FcDict;
 
-/// Locator class to get the ID associated with a key string.
+/// Locator class to get ids of given string keys.
 #[derive(Clone)]
 pub struct FcLocator<'a> {
     dict: &'a FcDict,
@@ -11,7 +11,11 @@ pub struct FcLocator<'a> {
 }
 
 impl<'a> FcLocator<'a> {
-    /// Makes the locator.
+    /// Makes a [`FcLocator`].
+    ///
+    /// # Arguments
+    ///
+    ///  - `dict`: Front-coding dictionay.
     pub fn new(dict: &'a FcDict) -> Self {
         Self {
             dict,
@@ -19,7 +23,15 @@ impl<'a> FcLocator<'a> {
         }
     }
 
-    /// Returns the ID associated with the given key.
+    /// Returns the id of the given key.
+    ///
+    /// # Arguments
+    ///
+    ///  - `key`: String key to be searched.
+    ///
+    /// # Complexity
+    ///
+    ///  - Logarithmic over the number of keys
     pub fn run(&mut self, key: &[u8]) -> Option<usize> {
         if key.is_empty() {
             return None;

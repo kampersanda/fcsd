@@ -1,6 +1,6 @@
 use crate::FcDict;
 
-/// Iterator class to enumerate the stored keys and IDs in lex order.
+/// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]
 pub struct FcIterator<'a> {
     dict: &'a FcDict,
@@ -10,7 +10,11 @@ pub struct FcIterator<'a> {
 }
 
 impl<'a> FcIterator<'a> {
-    /// Makes the iterator.
+    /// Makes an iterator [`FcIterator`].
+    ///
+    /// # Arguments
+    ///
+    ///  - `dict`: Front-coding dictionay.
     pub fn new(dict: &'a FcDict) -> Self {
         Self {
             dict,

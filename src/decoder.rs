@@ -1,7 +1,7 @@
 use crate::utils;
 use crate::FcDict;
 
-/// Decoder class to get the key string associated with an ID.
+/// Decoder class to get string keys associated with given ids.
 #[derive(Clone)]
 pub struct FcDecoder<'a> {
     dict: &'a FcDict,
@@ -9,7 +9,11 @@ pub struct FcDecoder<'a> {
 }
 
 impl<'a> FcDecoder<'a> {
-    /// Makes the decoder.
+    /// Makes a [`FcDecoder`].
+    ///
+    /// # Arguments
+    ///
+    ///  - `dict`: Front-coding dictionay.
     pub fn new(dict: &'a FcDict) -> Self {
         Self {
             dict,
@@ -17,12 +21,22 @@ impl<'a> FcDecoder<'a> {
         }
     }
 
-    /// Returns the string associated with the given ID.
-    pub fn run(&mut self, id: usize) -> Option<Vec<u8>> {
+    /// Returns the string key associated with the given id.
+    ///
+    /// # Arguments
+    ///
+    ///  - `id`: Integer id to be decoded.
+    ///
+    /// # Panics
+    ///
+    ///  - If `id` is no less than the number of keys, `panic!` will occur.
+    ///
+    /// # Complexity
+    ///
+    ///  - Constant
+    pub fn run(&mut self, id: usize) -> Vec<u8> {
         let (dict, dec) = (&self.dict, &mut self.dec);
-        if dict.num_keys() <= id {
-            return None;
-        }
+        assert!(id < dict.num_keys());
 
         let (bi, bj) = (dict.bucket_id(id), dict.pos_in_bucket(id));
         let mut pos = dict.decode_header(bi, dec);
@@ -35,6 +49,6 @@ impl<'a> FcDecoder<'a> {
             pos = dict.decode_next(pos, dec);
         }
 
-        Some(dec.clone())
+        dec.clone()
     }
 }
