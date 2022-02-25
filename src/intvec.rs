@@ -47,6 +47,7 @@ impl IntVector {
         }
     }
 
+    #[inline(always)]
     pub const fn len(&self) -> usize {
         self.len
     }
@@ -86,10 +87,12 @@ impl IntVector {
         })
     }
 
+    #[inline(always)]
     const fn words_for(bits: usize) -> usize {
         (bits + 63) / 64
     }
 
+    #[inline(always)]
     const fn decompose(x: usize) -> (usize, usize) {
         (x / 64, x % 64)
     }
