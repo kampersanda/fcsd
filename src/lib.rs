@@ -42,6 +42,9 @@ pub use prefix_iter::FcPrefixIterator;
 /// Special terminator, which must not be contained in stored keys.
 pub const END_MARKER: u8 = 0;
 
+/// Default parameter for the number of keys in each bucket.
+pub const DEFAULT_BUCKET_SIZE: usize = 8;
+
 const SERIAL_COOKIE: u32 = 114514;
 
 /// Fast and compact front-coding string dictionary.
@@ -57,9 +60,8 @@ const SERIAL_COOKIE: u32 = 114514;
 /// // Input string keys should be sorted and unique.
 /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
 ///
-/// // Builds the dictionary with bucket size 4.
-/// // Note that the bucket size needs to be a power of two.
-/// let dict = FcDict::new(keys, 4).unwrap();
+/// // Builds the dictionary.
+/// let dict = FcDict::new(keys).unwrap();
 /// assert_eq!(dict.num_keys(), keys.len());
 ///
 /// // Locates IDs associated with given keys.
@@ -103,6 +105,29 @@ impl FcDict {
     /// # Arguments
     ///
     ///  - `keys`: string keys that are unique and sorted.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use fcsd::FcDict;
+    ///
+    /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
+    /// let dict = FcDict::new(keys).unwrap();
+    /// assert_eq!(dict.num_keys(), keys.len());
+    /// ```
+    pub fn new<I, P>(keys: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<[u8]>,
+    {
+        Self::with_bucket_size(keys, DEFAULT_BUCKET_SIZE)
+    }
+
+    /// Builds a new [`FcDict`] from string keys with a specified bucket size.
+    ///
+    /// # Arguments
+    ///
+    ///  - `keys`: string keys that are unique and sorted.
     ///  - `bucket_size`: The number of strings in each bucket, which must be a power of two.
     ///
     /// # Example
@@ -111,10 +136,10 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::with_bucket_size(keys, 4).unwrap();
     /// assert_eq!(dict.num_keys(), keys.len());
     /// ```
-    pub fn new<I, P>(keys: I, bucket_size: usize) -> Result<Self>
+    pub fn with_bucket_size<I, P>(keys: I, bucket_size: usize) -> Result<Self>
     where
         I: IntoIterator<Item = P>,
         P: AsRef<[u8]>,
@@ -134,8 +159,8 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
-    /// assert_eq!(dict.size_in_bytes(), 112);
+    /// let dict = FcDict::new(keys).unwrap();
+    /// assert_eq!(dict.size_in_bytes(), 110);
     /// ```
     pub fn size_in_bytes(&self) -> usize {
         let mut bytes = 0;
@@ -157,11 +182,11 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut data = Vec::<u8>::new();
     /// dict.serialize_into(&mut data).unwrap();
-    /// assert_eq!(data.len(), 112);
+    /// assert_eq!(data.len(), 110);
     /// ```
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
@@ -189,7 +214,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut data = Vec::<u8>::new();
     /// dict.serialize_into(&mut data).unwrap();
@@ -234,7 +259,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut locator = dict.locator();
     /// assert_eq!(locator.run(b"ICML"), Some(1));
@@ -253,7 +278,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut decoder = dict.decoder();
     /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
@@ -273,7 +298,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR"];
-    /// let dict = FcDict::new(keys, 2).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut iter = dict.iter();
     /// assert_eq!(iter.next(), Some((0, b"ICDM".to_vec())));
@@ -299,7 +324,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     ///
     /// let mut iter = dict.prefix_iter(b"SIG");
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
@@ -319,7 +344,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::new(keys).unwrap();
     /// assert_eq!(dict.num_keys(), keys.len());
     /// ```
     #[inline(always)]
@@ -335,7 +360,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::with_bucket_size(keys, 4).unwrap();
     /// assert_eq!(dict.num_buckets(), 2);
     /// ```
     #[inline(always)]
@@ -351,7 +376,7 @@ impl FcDict {
     /// use fcsd::FcDict;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = FcDict::new(keys, 4).unwrap();
+    /// let dict = FcDict::with_bucket_size(keys, 4).unwrap();
     /// assert_eq!(dict.bucket_size(), 4);
     /// ```
     #[inline(always)]
