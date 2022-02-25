@@ -37,6 +37,7 @@ impl IntVector {
         }
     }
 
+    #[inline(always)]
     pub fn get(&self, i: usize) -> u64 {
         let (q, m) = Self::decompose(i * self.bits);
         if m + self.bits <= 64 {
@@ -46,11 +47,12 @@ impl IntVector {
         }
     }
 
+    #[inline(always)]
     pub const fn len(&self) -> usize {
         self.len
     }
 
-    pub fn serialized_size_in_bytes(&self) -> usize {
+    pub fn size_in_bytes(&self) -> usize {
         8 + self.chunks.len() * 8 + 8 * 3
     }
 
@@ -85,10 +87,12 @@ impl IntVector {
         })
     }
 
+    #[inline(always)]
     const fn words_for(bits: usize) -> usize {
         (bits + 63) / 64
     }
 
+    #[inline(always)]
     const fn decompose(x: usize) -> (usize, usize) {
         (x / 64, x % 64)
     }
