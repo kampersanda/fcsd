@@ -322,6 +322,7 @@ impl FcDict {
     /// let dict = FcDict::new(keys, 4).unwrap();
     /// assert_eq!(dict.num_keys(), keys.len());
     /// ```
+    #[inline(always)]
     pub const fn num_keys(&self) -> usize {
         self.num_keys
     }
@@ -337,6 +338,7 @@ impl FcDict {
     /// let dict = FcDict::new(keys, 4).unwrap();
     /// assert_eq!(dict.num_buckets(), 2);
     /// ```
+    #[inline(always)]
     pub const fn num_buckets(&self) -> usize {
         self.pointers.len()
     }
@@ -352,27 +354,33 @@ impl FcDict {
     /// let dict = FcDict::new(keys, 4).unwrap();
     /// assert_eq!(dict.bucket_size(), 4);
     /// ```
+    #[inline(always)]
     pub const fn bucket_size(&self) -> usize {
         self.bucket_mask + 1
     }
 
+    #[inline(always)]
     const fn max_length(&self) -> usize {
         self.max_length
     }
 
+    #[inline(always)]
     const fn bucket_id(&self, id: usize) -> usize {
         id >> self.bucket_bits
     }
 
+    #[inline(always)]
     const fn pos_in_bucket(&self, id: usize) -> usize {
         id & self.bucket_mask
     }
 
+    #[inline(always)]
     fn get_header(&self, bi: usize) -> &[u8] {
         let header = &self.serialized[self.pointers.get(bi) as usize..];
         &header[..utils::get_strlen(header)]
     }
 
+    #[inline(always)]
     fn decode_header(&self, bi: usize, dec: &mut Vec<u8>) -> usize {
         dec.clear();
         let mut pos = self.pointers.get(bi) as usize;
@@ -383,11 +391,13 @@ impl FcDict {
         pos + 1
     }
 
+    #[inline(always)]
     fn decode_lcp(&self, pos: usize) -> (usize, usize) {
         let (lcp, num) = utils::vbyte::decode(&self.serialized[pos..]);
         (lcp, pos + num)
     }
 
+    #[inline(always)]
     fn decode_next(&self, mut pos: usize, dec: &mut Vec<u8>) -> usize {
         while self.serialized[pos] != END_MARKER {
             dec.push(self.serialized[pos]);
