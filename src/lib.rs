@@ -106,6 +106,11 @@ impl FcDict {
     ///
     ///  - `keys`: string keys that are unique and sorted.
     ///
+    /// # Notes
+    ///
+    /// It will set the bucket size to [`DEFAULT_BUCKET_SIZE`].
+    /// If you want to optionally set the parameter, use [`FcDict::with_bucket_size`] instead.
+    ///
     /// # Example
     ///
     /// ```
