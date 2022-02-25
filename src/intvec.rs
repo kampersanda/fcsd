@@ -37,6 +37,7 @@ impl IntVector {
         }
     }
 
+    #[inline(always)]
     pub fn get(&self, i: usize) -> u64 {
         let (q, m) = Self::decompose(i * self.bits);
         if m + self.bits <= 64 {
