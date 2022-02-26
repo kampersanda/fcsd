@@ -337,7 +337,10 @@ impl FcDict {
     /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn prefix_iter<'a>(&'a self, prefix: &'a [u8]) -> FcPrefixIterator {
+    pub fn prefix_iter<P>(&self, prefix: P) -> FcPrefixIterator
+    where
+        P: AsRef<[u8]>,
+    {
         FcPrefixIterator::new(self, prefix)
     }
 

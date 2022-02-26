@@ -6,7 +6,7 @@ use crate::FcDict;
 pub struct FcPrefixIterator<'a> {
     dict: &'a FcDict,
     dec: Vec<u8>,
-    key: &'a [u8],
+    key: Vec<u8>,
     pos: usize,
     id: usize,
 }
@@ -18,9 +18,12 @@ impl<'a> FcPrefixIterator<'a> {
     ///
     ///  - `dict`: Front-coding dictionay.
     ///  - `key`: Prefix key.
-    pub fn new(dict: &'a FcDict, key: &'a [u8]) -> Self {
+    pub fn new<P>(dict: &'a FcDict, key: P) -> Self
+    where
+        P: AsRef<[u8]>,
+    {
         Self {
-            key,
+            key: key.as_ref().to_vec(),
             dict,
             dec: Vec::with_capacity(dict.max_length()),
             pos: 0,
@@ -33,8 +36,11 @@ impl<'a> FcPrefixIterator<'a> {
     /// # Arguments
     ///
     ///  - `key`: Prefix key.
-    pub fn reset(&mut self, key: &'a [u8]) {
-        self.key = key;
+    pub fn reset<P>(&mut self, key: P)
+    where
+        P: AsRef<[u8]>,
+    {
+        self.key = key.as_ref().to_vec();
         self.dec.clear();
         self.pos = 0;
         self.id = 0;
@@ -49,11 +55,11 @@ impl<'a> FcPrefixIterator<'a> {
             return true;
         }
 
-        let (bi, found) = dict.search_bucket(self.key);
+        let (bi, found) = dict.search_bucket(&self.key);
         self.pos = dict.decode_header(bi, dec);
         self.id = bi * dict.bucket_size();
 
-        if found || utils::is_prefix(self.key, dec) {
+        if found || utils::is_prefix(&self.key, dec) {
             return true;
         }
 
@@ -67,7 +73,7 @@ impl<'a> FcPrefixIterator<'a> {
             dec.resize(lcp, 0);
             self.pos = dict.decode_next(self.pos, dec);
 
-            if utils::is_prefix(self.key, dec) {
+            if utils::is_prefix(&self.key, dec) {
                 self.id += bj;
                 return true;
             }
@@ -104,7 +110,7 @@ impl<'a> Iterator for FcPrefixIterator<'a> {
             self.pos = self.dict.decode_next(self.pos, &mut self.dec);
         }
 
-        if utils::is_prefix(self.key, &self.dec) {
+        if utils::is_prefix(&self.key, &self.dec) {
             Some((self.id, self.dec.clone()))
         } else {
             self.dec.clear();
