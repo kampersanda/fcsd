@@ -45,6 +45,6 @@ impl<'a> Iterator for Iter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.set.num_keys(), Some(self.set.num_keys()))
+        (self.set.len(), Some(self.set.len()))
     }
 }

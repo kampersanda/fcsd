@@ -63,7 +63,7 @@ const SERIAL_COOKIE: u32 = 114514;
 ///
 /// // Builds the dictionary.
 /// let set = Set::new(keys).unwrap();
-/// assert_eq!(set.num_keys(), keys.len());
+/// assert_eq!(set.len(), keys.len());
 ///
 /// // Locates IDs associated with given keys.
 /// let mut locator = set.locator();
@@ -94,7 +94,7 @@ const SERIAL_COOKIE: u32 = 114514;
 pub struct Set {
     pointers: IntVector,
     serialized: Vec<u8>,
-    num_keys: usize,
+    len: usize,
     bucket_bits: usize,
     bucket_mask: usize,
     max_length: usize,
@@ -119,7 +119,7 @@ impl Set {
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
     /// let set = Set::new(keys).unwrap();
-    /// assert_eq!(set.num_keys(), keys.len());
+    /// assert_eq!(set.len(), keys.len());
     /// ```
     pub fn new<I, P>(keys: I) -> Result<Self>
     where
@@ -143,7 +143,7 @@ impl Set {
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
     /// let set = Set::with_bucket_size(keys, 4).unwrap();
-    /// assert_eq!(set.num_keys(), keys.len());
+    /// assert_eq!(set.len(), keys.len());
     /// ```
     pub fn with_bucket_size<I, P>(keys: I, bucket_size: usize) -> Result<Self>
     where
@@ -204,7 +204,7 @@ impl Set {
         for &x in &self.serialized {
             writer.write_u8(x)?;
         }
-        writer.write_u64::<LittleEndian>(self.num_keys as u64)?;
+        writer.write_u64::<LittleEndian>(self.len as u64)?;
         writer.write_u64::<LittleEndian>(self.bucket_bits as u64)?;
         writer.write_u64::<LittleEndian>(self.bucket_mask as u64)?;
         writer.write_u64::<LittleEndian>(self.max_length as u64)?;
@@ -248,7 +248,7 @@ impl Set {
             serialized
         };
 
-        let num_keys = reader.read_u64::<LittleEndian>()? as usize;
+        let len = reader.read_u64::<LittleEndian>()? as usize;
         let bucket_bits = reader.read_u64::<LittleEndian>()? as usize;
         let bucket_mask = reader.read_u64::<LittleEndian>()? as usize;
         let max_length = reader.read_u64::<LittleEndian>()? as usize;
@@ -256,7 +256,7 @@ impl Set {
         Ok(Self {
             pointers,
             serialized,
-            num_keys,
+            len,
             bucket_bits,
             bucket_mask,
             max_length,
@@ -360,11 +360,17 @@ impl Set {
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
     /// let set = Set::new(keys).unwrap();
-    /// assert_eq!(set.num_keys(), keys.len());
+    /// assert_eq!(set.len(), keys.len());
     /// ```
     #[inline(always)]
-    pub const fn num_keys(&self) -> usize {
-        self.num_keys
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Checks if the set is empty.
+    #[inline(always)]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Gets the number of defined buckets.

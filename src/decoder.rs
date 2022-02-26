@@ -36,7 +36,7 @@ impl<'a> Decoder<'a> {
     ///  - Constant
     pub fn run(&mut self, id: usize) -> Vec<u8> {
         let (set, dec) = (&self.set, &mut self.dec);
-        assert!(id < set.num_keys());
+        assert!(id < set.len());
 
         let (bi, bj) = (set.bucket_id(id), set.pos_in_bucket(id));
         let mut pos = set.decode_header(bi, dec);

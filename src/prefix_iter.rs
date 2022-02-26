@@ -121,6 +121,6 @@ impl<'a> Iterator for PrefixIter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.set.num_keys()))
+        (0, Some(self.set.len()))
     }
 }

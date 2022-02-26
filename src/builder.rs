@@ -11,7 +11,7 @@ pub struct Builder {
     pointers: Vec<u64>,
     serialized: Vec<u8>,
     last_key: Vec<u8>,
-    num_keys: usize,
+    len: usize,
     bucket_bits: usize,
     bucket_mask: usize,
     max_length: usize,
@@ -40,7 +40,7 @@ impl Builder {
                 pointers: Vec::new(),
                 serialized: Vec::new(),
                 last_key: Vec::new(),
-                num_keys: 0,
+                len: 0,
                 bucket_bits: utils::needed_bits((bucket_size - 1) as u64),
                 bucket_mask: bucket_size - 1,
                 max_length: 0,
@@ -73,7 +73,7 @@ impl Builder {
             return Err(anyhow!("The input key must be more than the last one.",));
         }
 
-        if self.num_keys & self.bucket_mask == 0 {
+        if self.len & self.bucket_mask == 0 {
             self.pointers.push(self.serialized.len() as u64);
             self.serialized.extend_from_slice(key);
         } else {
@@ -84,7 +84,7 @@ impl Builder {
 
         self.last_key.resize(key.len(), 0);
         self.last_key.copy_from_slice(key);
-        self.num_keys += 1;
+        self.len += 1;
         self.max_length = std::cmp::max(self.max_length, key.len());
 
         Ok(())
@@ -95,7 +95,7 @@ impl Builder {
         Set {
             pointers: IntVector::build(&self.pointers),
             serialized: self.serialized,
-            num_keys: self.num_keys,
+            len: self.len,
             bucket_bits: self.bucket_bits,
             bucket_mask: self.bucket_mask,
             max_length: self.max_length,
