@@ -194,7 +194,10 @@ impl Set {
     /// dict.serialize_into(&mut data).unwrap();
     /// assert_eq!(data.len(), 110);
     /// ```
-    pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> Result<()> {
+    pub fn serialize_into<W>(&self, mut writer: W) -> Result<()>
+    where
+        W: io::Write,
+    {
         writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
         self.pointers.serialize_into(&mut writer)?;
         writer.write_u64::<LittleEndian>(self.serialized.len() as u64)?;
@@ -227,7 +230,10 @@ impl Set {
     /// let other = Set::deserialize_from(&data[..]).unwrap();
     /// assert_eq!(dict.size_in_bytes(), other.size_in_bytes());
     /// ```
-    pub fn deserialize_from<R: io::Read>(mut reader: R) -> Result<Self> {
+    pub fn deserialize_from<R>(mut reader: R) -> Result<Self>
+    where
+        R: io::Read,
+    {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
             return Err(anyhow!("unknown cookie value"));
