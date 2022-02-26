@@ -1,9 +1,9 @@
-use crate::FcDict;
+use crate::Set;
 
 /// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]
 pub struct FcIterator<'a> {
-    dict: &'a FcDict,
+    dict: &'a Set,
     dec: Vec<u8>,
     pos: usize,
     id: usize,
@@ -15,7 +15,7 @@ impl<'a> FcIterator<'a> {
     /// # Arguments
     ///
     ///  - `dict`: Front-coding dictionay.
-    pub fn new(dict: &'a FcDict) -> Self {
+    pub fn new(dict: &'a Set) -> Self {
         Self {
             dict,
             dec: Vec::with_capacity(dict.max_length()),

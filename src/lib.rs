@@ -23,7 +23,7 @@ pub mod set;
 mod utils;
 
 pub use set::builder::FcBuilder;
-pub use set::FcDict;
+pub use set::Set;
 
 /// Special terminator, which must not be contained in stored keys.
 pub const END_MARKER: u8 = 0;
@@ -123,7 +123,7 @@ mod tests {
         dict.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), dict.size_in_bytes());
 
-        let other = FcDict::deserialize_from(&buffer[..]).unwrap();
+        let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
@@ -167,7 +167,7 @@ mod tests {
         dict.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), dict.size_in_bytes());
 
-        let other = FcDict::deserialize_from(&buffer[..]).unwrap();
+        let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();

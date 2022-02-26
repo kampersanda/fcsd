@@ -1,10 +1,10 @@
 use crate::utils;
-use crate::FcDict;
+use crate::Set;
 
 /// Iterator to enumerate keys starting from a given string.
 #[derive(Clone)]
 pub struct FcPrefixIterator<'a> {
-    dict: &'a FcDict,
+    dict: &'a Set,
     dec: Vec<u8>,
     key: Vec<u8>,
     pos: usize,
@@ -18,7 +18,7 @@ impl<'a> FcPrefixIterator<'a> {
     ///
     ///  - `dict`: Front-coding dictionay.
     ///  - `key`: Prefix key.
-    pub fn new<P>(dict: &'a FcDict, key: P) -> Self
+    pub fn new<P>(dict: &'a Set, key: P) -> Self
     where
         P: AsRef<[u8]>,
     {

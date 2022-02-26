@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
 
 use crate::utils;
-use crate::FcDict;
+use crate::Set;
 
 /// Locator class to get ids of given string keys.
 #[derive(Clone)]
 pub struct FcLocator<'a> {
-    dict: &'a FcDict,
+    dict: &'a Set,
     dec: Vec<u8>,
 }
 
@@ -16,7 +16,7 @@ impl<'a> FcLocator<'a> {
     /// # Arguments
     ///
     ///  - `dict`: Front-coding dictionay.
-    pub fn new(dict: &'a FcDict) -> Self {
+    pub fn new(dict: &'a Set) -> Self {
         Self {
             dict,
             dec: Vec::with_capacity(dict.max_length()),

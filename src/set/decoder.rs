@@ -1,10 +1,10 @@
 use crate::utils;
-use crate::FcDict;
+use crate::Set;
 
 /// Decoder class to get string keys associated with given ids.
 #[derive(Clone)]
 pub struct FcDecoder<'a> {
-    dict: &'a FcDict,
+    dict: &'a Set,
     dec: Vec<u8>,
 }
 
@@ -14,7 +14,7 @@ impl<'a> FcDecoder<'a> {
     /// # Arguments
     ///
     ///  - `dict`: Front-coding dictionay.
-    pub fn new(dict: &'a FcDict) -> Self {
+    pub fn new(dict: &'a Set) -> Self {
         Self {
             dict,
             dec: Vec::with_capacity(dict.max_length()),

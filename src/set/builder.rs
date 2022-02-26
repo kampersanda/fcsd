@@ -2,10 +2,10 @@ use anyhow::{anyhow, Result};
 
 use crate::intvec::IntVector;
 use crate::utils;
-use crate::FcDict;
+use crate::Set;
 use crate::END_MARKER;
 
-/// Builder class for [`FcDict`].
+/// Builder class for [`Set`].
 #[derive(Clone)]
 pub struct FcBuilder {
     pointers: Vec<u64>,
@@ -91,8 +91,8 @@ impl FcBuilder {
     }
 
     /// Builds and returns the dictionary.
-    pub fn finish(self) -> FcDict {
-        FcDict {
+    pub fn finish(self) -> Set {
+        Set {
             pointers: IntVector::build(&self.pointers),
             serialized: self.serialized,
             num_keys: self.num_keys,
