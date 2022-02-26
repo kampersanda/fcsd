@@ -62,22 +62,22 @@ const SERIAL_COOKIE: u32 = 114514;
 /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
 ///
 /// // Builds the dictionary.
-/// let dict = Set::new(keys).unwrap();
-/// assert_eq!(dict.num_keys(), keys.len());
+/// let set = Set::new(keys).unwrap();
+/// assert_eq!(set.num_keys(), keys.len());
 ///
 /// // Locates IDs associated with given keys.
-/// let mut locator = dict.locator();
+/// let mut locator = set.locator();
 /// assert_eq!(locator.run(b"ICML"), Some(1));
 /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
 /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
 ///
 /// // Decodes string keys associated with given IDs.
-/// let mut decoder = dict.decoder();
+/// let mut decoder = set.decoder();
 /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
 /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
 ///
 /// // Enumerates string keys starting with a prefix.
-/// let mut iter = dict.prefix_iter(b"SIG");
+/// let mut iter = set.prefix_iter(b"SIG");
 /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
 /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
 /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
@@ -85,8 +85,8 @@ const SERIAL_COOKIE: u32 = 114514;
 ///
 /// // Serialization / Deserialization
 /// let mut data = Vec::<u8>::new();
-/// dict.serialize_into(&mut data).unwrap();
-/// assert_eq!(data.len(), dict.size_in_bytes());
+/// set.serialize_into(&mut data).unwrap();
+/// assert_eq!(data.len(), set.size_in_bytes());
 /// let other = Set::deserialize_from(&data[..]).unwrap();
 /// assert_eq!(data.len(), other.size_in_bytes());
 /// ```
@@ -118,8 +118,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
-    /// assert_eq!(dict.num_keys(), keys.len());
+    /// let set = Set::new(keys).unwrap();
+    /// assert_eq!(set.num_keys(), keys.len());
     /// ```
     pub fn new<I, P>(keys: I) -> Result<Self>
     where
@@ -142,8 +142,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::with_bucket_size(keys, 4).unwrap();
-    /// assert_eq!(dict.num_keys(), keys.len());
+    /// let set = Set::with_bucket_size(keys, 4).unwrap();
+    /// assert_eq!(set.num_keys(), keys.len());
     /// ```
     pub fn with_bucket_size<I, P>(keys: I, bucket_size: usize) -> Result<Self>
     where
@@ -165,8 +165,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
-    /// assert_eq!(dict.size_in_bytes(), 110);
+    /// let set = Set::new(keys).unwrap();
+    /// assert_eq!(set.size_in_bytes(), 110);
     /// ```
     pub fn size_in_bytes(&self) -> usize {
         let mut bytes = 0;
@@ -188,10 +188,10 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
     /// let mut data = Vec::<u8>::new();
-    /// dict.serialize_into(&mut data).unwrap();
+    /// set.serialize_into(&mut data).unwrap();
     /// assert_eq!(data.len(), 110);
     /// ```
     pub fn serialize_into<W>(&self, mut writer: W) -> Result<()>
@@ -223,12 +223,12 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
     /// let mut data = Vec::<u8>::new();
-    /// dict.serialize_into(&mut data).unwrap();
+    /// set.serialize_into(&mut data).unwrap();
     /// let other = Set::deserialize_from(&data[..]).unwrap();
-    /// assert_eq!(dict.size_in_bytes(), other.size_in_bytes());
+    /// assert_eq!(set.size_in_bytes(), other.size_in_bytes());
     /// ```
     pub fn deserialize_from<R>(mut reader: R) -> Result<Self>
     where
@@ -271,9 +271,9 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
-    /// let mut locator = dict.locator();
+    /// let mut locator = set.locator();
     /// assert_eq!(locator.run(b"ICML"), Some(1));
     /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
     /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
@@ -290,9 +290,9 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
-    /// let mut decoder = dict.decoder();
+    /// let mut decoder = set.decoder();
     /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
     /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
     /// ```
@@ -310,9 +310,9 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
-    /// let mut iter = dict.iter();
+    /// let mut iter = set.iter();
     /// assert_eq!(iter.next(), Some((0, b"ICDM".to_vec())));
     /// assert_eq!(iter.next(), Some((1, b"ICML".to_vec())));
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
@@ -336,9 +336,9 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
+    /// let set = Set::new(keys).unwrap();
     ///
-    /// let mut iter = dict.prefix_iter(b"SIG");
+    /// let mut iter = set.prefix_iter(b"SIG");
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
     /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
     /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
@@ -359,8 +359,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::new(keys).unwrap();
-    /// assert_eq!(dict.num_keys(), keys.len());
+    /// let set = Set::new(keys).unwrap();
+    /// assert_eq!(set.num_keys(), keys.len());
     /// ```
     #[inline(always)]
     pub const fn num_keys(&self) -> usize {
@@ -375,8 +375,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::with_bucket_size(keys, 4).unwrap();
-    /// assert_eq!(dict.num_buckets(), 2);
+    /// let set = Set::with_bucket_size(keys, 4).unwrap();
+    /// assert_eq!(set.num_buckets(), 2);
     /// ```
     #[inline(always)]
     pub const fn num_buckets(&self) -> usize {
@@ -391,8 +391,8 @@ impl Set {
     /// use fcsd::Set;
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-    /// let dict = Set::with_bucket_size(keys, 4).unwrap();
-    /// assert_eq!(dict.bucket_size(), 4);
+    /// let set = Set::with_bucket_size(keys, 4).unwrap();
+    /// assert_eq!(set.bucket_size(), 4);
     /// ```
     #[inline(always)]
     pub const fn bucket_size(&self) -> usize {
@@ -509,9 +509,9 @@ mod tests {
         assert!(builder.add("tri".as_bytes()).is_err());
         assert!(builder.add(&[0xFF, 0x00]).is_err());
 
-        let dict = builder.finish();
+        let set = builder.finish();
 
-        let mut locator = dict.locator();
+        let mut locator = set.locator();
         for i in 0..keys.len() {
             let id = locator.run(keys[i].as_bytes()).unwrap();
             assert_eq!(i, id);
@@ -521,12 +521,12 @@ mod tests {
         assert!(locator.run("techno".as_bytes()).is_none());
         assert!(locator.run("zzz".as_bytes()).is_none());
 
-        let mut decoder = dict.decoder();
+        let mut decoder = set.decoder();
         for i in 0..keys.len() {
             assert_eq!(keys[i].as_bytes(), &decoder.run(i));
         }
 
-        let mut iterator = dict.iter();
+        let mut iterator = set.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
@@ -534,7 +534,7 @@ mod tests {
         }
         assert!(iterator.next().is_none());
 
-        let mut iterator = dict.prefix_iter("idea".as_bytes());
+        let mut iterator = set.prefix_iter("idea".as_bytes());
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(1, id);
@@ -553,8 +553,8 @@ mod tests {
         assert!(iterator.next().is_none());
 
         let mut buffer = vec![];
-        dict.serialize_into(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), dict.size_in_bytes());
+        set.serialize_into(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), set.size_in_bytes());
 
         let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
@@ -574,21 +574,21 @@ mod tests {
         for key in &keys {
             builder.add(key).unwrap();
         }
-        let dict = builder.finish();
+        let set = builder.finish();
 
-        let mut locator = dict.locator();
+        let mut locator = set.locator();
         for i in 0..keys.len() {
             let id = locator.run(&keys[i]).unwrap();
             assert_eq!(i, id);
         }
 
-        let mut decoder = dict.decoder();
+        let mut decoder = set.decoder();
         for i in 0..keys.len() {
             let dec = decoder.run(i);
             assert_eq!(&keys[i], &dec);
         }
 
-        let mut iterator = dict.iter();
+        let mut iterator = set.iter();
         for i in 0..keys.len() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
@@ -597,8 +597,8 @@ mod tests {
         assert!(iterator.next().is_none());
 
         let mut buffer = vec![];
-        dict.serialize_into(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), dict.size_in_bytes());
+        set.serialize_into(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), set.size_in_bytes());
 
         let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
