@@ -32,7 +32,11 @@ impl<'a> FcLocator<'a> {
     /// # Complexity
     ///
     ///  - Logarithmic over the number of keys
-    pub fn run(&mut self, key: &[u8]) -> Option<usize> {
+    pub fn run<P>(&mut self, key: P) -> Option<usize>
+    where
+        P: AsRef<[u8]>,
+    {
+        let key = key.as_ref();
         if key.is_empty() {
             return None;
         }
