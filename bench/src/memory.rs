@@ -14,7 +14,7 @@ fn memory(filename: &str) {
     // +1 is for the terminator.
     let orig_size = keys.iter().fold(0, |acc, k| acc + k.len() + 1);
     {
-        let dict = fcsd::FcDict::new(&keys).unwrap();
+        let dict = fcsd::Set::new(&keys).unwrap();
         print("fcsd", dict.size_in_bytes(), orig_size);
     }
     {

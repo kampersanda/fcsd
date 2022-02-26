@@ -36,7 +36,7 @@ fn criterion_locate(c: &mut Criterion) {
 fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
     group.bench_function("fcsd", |b| {
         b.iter(|| {
-            fcsd::FcDict::new(keys).unwrap();
+            fcsd::Set::new(keys).unwrap();
         });
     });
 
@@ -49,7 +49,7 @@ fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
 
 fn locate(group: &mut BenchmarkGroup<WallTime>, keys: &[String], queries: &[String]) {
     group.bench_function("fcsd", |b| {
-        let dict = fcsd::FcDict::new(keys).unwrap();
+        let dict = fcsd::Set::new(keys).unwrap();
         let mut locator = dict.locator();
         b.iter(|| {
             let mut sum = 0;
