@@ -32,12 +32,12 @@ use std::io;
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use builder::FcBuilder;
-use decoder::FcDecoder;
+use builder::Builder;
+use decoder::Decoder;
 use intvec::IntVector;
-use iter::FcIterator;
-use locator::FcLocator;
-use prefix_iter::FcPrefixIterator;
+use iter::Iter;
+use locator::Locator;
+use prefix_iter::PrefixIter;
 
 /// Special terminator, which must not be contained in stored keys.
 pub const END_MARKER: u8 = 0;
@@ -150,7 +150,7 @@ impl Set {
         I: IntoIterator<Item = P>,
         P: AsRef<[u8]>,
     {
-        let mut builder = FcBuilder::new(bucket_size)?;
+        let mut builder = Builder::new(bucket_size)?;
         for key in keys {
             builder.add(key.as_ref())?;
         }
@@ -272,8 +272,8 @@ impl Set {
     /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
     /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
     /// ```
-    pub fn locator(&self) -> FcLocator {
-        FcLocator::new(self)
+    pub fn locator(&self) -> Locator {
+        Locator::new(self)
     }
 
     /// Makes a class to decode stored keys associated with given ids.
@@ -290,8 +290,8 @@ impl Set {
     /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
     /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
     /// ```
-    pub fn decoder(&self) -> FcDecoder {
-        FcDecoder::new(self)
+    pub fn decoder(&self) -> Decoder {
+        Decoder::new(self)
     }
 
     /// Makes an iterator to enumerate keys stored in the dictionary.
@@ -312,8 +312,8 @@ impl Set {
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn iter(&self) -> FcIterator {
-        FcIterator::new(self)
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
     }
 
     /// Makes an iterator to enumerate keys starting from a given string.
@@ -338,11 +338,11 @@ impl Set {
     /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn prefix_iter<P>(&self, prefix: P) -> FcPrefixIterator
+    pub fn prefix_iter<P>(&self, prefix: P) -> PrefixIter
     where
         P: AsRef<[u8]>,
     {
-        FcPrefixIterator::new(self, prefix)
+        PrefixIter::new(self, prefix)
     }
 
     /// Gets the number of stored keys.
@@ -493,9 +493,9 @@ mod tests {
             "trie",
         ];
 
-        assert!(FcBuilder::new(0).is_err());
-        assert!(FcBuilder::new(3).is_err());
-        let mut builder = FcBuilder::new(4).unwrap();
+        assert!(Builder::new(0).is_err());
+        assert!(Builder::new(3).is_err());
+        let mut builder = Builder::new(4).unwrap();
 
         for &key in &keys {
             builder.add(key.as_bytes()).unwrap();
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn test_random() {
         let keys = gen_random_keys(10000, 8, 11);
-        let mut builder = FcBuilder::new(8).unwrap();
+        let mut builder = Builder::new(8).unwrap();
 
         for key in &keys {
             builder.add(key).unwrap();

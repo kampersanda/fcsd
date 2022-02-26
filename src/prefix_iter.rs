@@ -3,7 +3,7 @@ use crate::Set;
 
 /// Iterator to enumerate keys starting from a given string.
 #[derive(Clone)]
-pub struct FcPrefixIterator<'a> {
+pub struct PrefixIter<'a> {
     dict: &'a Set,
     dec: Vec<u8>,
     key: Vec<u8>,
@@ -11,8 +11,8 @@ pub struct FcPrefixIterator<'a> {
     id: usize,
 }
 
-impl<'a> FcPrefixIterator<'a> {
-    /// Makes an iterator [`FcPrefixIterator`].
+impl<'a> PrefixIter<'a> {
+    /// Makes an iterator [`PrefixIter`].
     ///
     /// # Arguments
     ///
@@ -83,7 +83,7 @@ impl<'a> FcPrefixIterator<'a> {
     }
 }
 
-impl<'a> Iterator for FcPrefixIterator<'a> {
+impl<'a> Iterator for PrefixIter<'a> {
     type Item = (usize, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -2,15 +2,15 @@ use crate::Set;
 
 /// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]
-pub struct FcIterator<'a> {
+pub struct Iter<'a> {
     dict: &'a Set,
     dec: Vec<u8>,
     pos: usize,
     id: usize,
 }
 
-impl<'a> FcIterator<'a> {
-    /// Makes an iterator [`FcIterator`].
+impl<'a> Iter<'a> {
+    /// Makes an iterator [`Iter`].
     ///
     /// # Arguments
     ///
@@ -25,7 +25,7 @@ impl<'a> FcIterator<'a> {
     }
 }
 
-impl<'a> Iterator for FcIterator<'a> {
+impl<'a> Iterator for Iter<'a> {
     type Item = (usize, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {

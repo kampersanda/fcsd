@@ -3,13 +3,13 @@ use crate::Set;
 
 /// Decoder class to get string keys associated with given ids.
 #[derive(Clone)]
-pub struct FcDecoder<'a> {
+pub struct Decoder<'a> {
     dict: &'a Set,
     dec: Vec<u8>,
 }
 
-impl<'a> FcDecoder<'a> {
-    /// Makes a [`FcDecoder`].
+impl<'a> Decoder<'a> {
+    /// Makes a [`Decoder`].
     ///
     /// # Arguments
     ///

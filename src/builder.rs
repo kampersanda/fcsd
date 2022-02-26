@@ -7,7 +7,7 @@ use crate::END_MARKER;
 
 /// Builder class for [`Set`].
 #[derive(Clone)]
-pub struct FcBuilder {
+pub struct Builder {
     pointers: Vec<u64>,
     serialized: Vec<u8>,
     last_key: Vec<u8>,
@@ -17,8 +17,8 @@ pub struct FcBuilder {
     max_length: usize,
 }
 
-impl FcBuilder {
-    /// Creates a [`FcBuilder`] with the given bucket size.
+impl Builder {
+    /// Creates a [`Builder`] with the given bucket size.
     ///
     /// # Arguments
     ///

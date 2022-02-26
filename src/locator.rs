@@ -5,13 +5,13 @@ use crate::Set;
 
 /// Locator class to get ids of given string keys.
 #[derive(Clone)]
-pub struct FcLocator<'a> {
+pub struct Locator<'a> {
     dict: &'a Set,
     dec: Vec<u8>,
 }
 
-impl<'a> FcLocator<'a> {
-    /// Makes a [`FcLocator`].
+impl<'a> Locator<'a> {
+    /// Makes a [`Locator`].
     ///
     /// # Arguments
     ///
