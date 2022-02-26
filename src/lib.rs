@@ -31,6 +31,7 @@ pub const END_MARKER: u8 = 0;
 /// Default parameter for the number of keys in each bucket.
 pub const DEFAULT_BUCKET_SIZE: usize = 8;
 
+/// Serial cookie value for serialization.
 const SERIAL_COOKIE: u32 = 114514;
 
 #[cfg(test)]
