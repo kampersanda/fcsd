@@ -1,23 +1,17 @@
-//! # Front-coding string dictionary in Rust
+//! # Fast and compact indexed string set using Front Coding.
 //!
-//! ![](https://github.com/kampersanda/fcsd/actions/workflows/rust.yml/badge.svg)
-//! [![Documentation](https://docs.rs/fcsd/badge.svg)](https://docs.rs/fcsd)
-//! [![Crates.io](https://img.shields.io/crates/v/fcsd.svg)](https://crates.io/crates/fcsd)
-//! [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/kampersanda/fcsd/blob/master/LICENSE)
+//! This crate provides an indexed set of strings in a compressed format based on Front Coding.
+//! `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
 //!
+//! ## Supported queries
 //!
-//! This is a Rust library of the (plain) front-coding string dictionary described in [*Martínez-Prieto et al., Practical compressed string dictionaries, INFOSYS 2016*](https://doi.org/10.1016/j.is.2015.08.008).
+//!  - `Locate` gets the index of a string key.
+//!  - `Decode` gets the string with an index.
+//!  - `Predict` enumerates the strings starting from a prefix.
 //!
-//! ## Features
+//! ## References
 //!
-//! - **Dictionary encoding.** Fcsd provides a bijective mapping between strings and integer IDs. It is so-called *dictionary encoding* and useful for text compression in many applications.
-//! - **Simple and fast compression.** Fcsd maintains a set of strings in a compressed space through *front-coding*, a differential compression technique for strings, allowing for fast decompression operations.
-//! - **Random access.** Fcsd maintains strings through a bucketization technique enabling to directly decompress arbitrary strings and perform binary search for strings.
-//!
-//! ## Note
-//!
-//! - Input keys must not contain `\0` character because the character is used for the string delimiter.
-//! - The bucket size of 8 is recommended in space-time tradeoff by Martínez-Prieto's paper.
+//!  - Martínez-Prieto et al., [Practical compressed string dictionaries](https://doi.org/10.1016/j.is.2015.08.008), INFOSYS 2016
 pub mod builder;
 pub mod decoder;
 mod intvec;
@@ -52,11 +46,16 @@ const SERIAL_COOKIE: u32 = 114514;
 ///
 /// This implements an indexed set of strings in a compressed format based on Front Coding.
 /// `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
-/// The set supports the following queries:
+///
+/// ## Supported queries
 ///
 ///  - `Locate` gets the index of a string key.
 ///  - `Decode` gets the string with an index.
 ///  - `Predict` enumerates the strings starting from a prefix.
+///
+/// ## Limitations
+///
+/// Input keys must not contain `\0` character because the character is used for the terminator.
 ///
 /// # Example
 ///
