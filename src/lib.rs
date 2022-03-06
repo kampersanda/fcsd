@@ -23,7 +23,7 @@ pub mod decoder;
 mod intvec;
 pub mod iter;
 pub mod locator;
-pub mod prefix_iter;
+pub mod predictive_iter;
 mod utils;
 
 use std::cmp::Ordering;
@@ -37,7 +37,7 @@ use decoder::Decoder;
 use intvec::IntVector;
 use iter::Iter;
 use locator::Locator;
-use prefix_iter::PrefixIter;
+use predictive_iter::PredictiveIter;
 
 /// Special terminator, which must not be contained in stored keys.
 pub const END_MARKER: u8 = 0;
@@ -91,7 +91,7 @@ const SERIAL_COOKIE: u32 = 114514;
 /// assert_eq!(iter.next(), None);
 ///
 /// // Enumerates indexes and keys starting with a prefix.
-/// let mut iter = set.prefix_iter(b"SIG");
+/// let mut iter = set.predictive_iter(b"SIG");
 /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
 /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
 /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
@@ -336,13 +336,13 @@ impl Set {
         Iter::new(self)
     }
 
-    /// Makes an iterator to enumerate keys starting from a given string.
+    /// Makes a predictive iterator to enumerate keys starting from a given string.
     ///
     /// The keys will be reported in the lexicographical order.
     ///
     /// # Arguments
     ///
-    ///  - `prefix`: Prefix of keys to be enumerated.
+    ///  - `prefix`: Prefix of keys to be predicted.
     ///
     /// # Example
     ///
@@ -352,17 +352,17 @@ impl Set {
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
     /// let set = Set::new(keys).unwrap();
     ///
-    /// let mut iter = set.prefix_iter(b"SIG");
+    /// let mut iter = set.predictive_iter(b"SIG");
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
     /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
     /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn prefix_iter<P>(&self, prefix: P) -> PrefixIter
+    pub fn predictive_iter<P>(&self, prefix: P) -> PredictiveIter
     where
         P: AsRef<[u8]>,
     {
-        PrefixIter::new(self, prefix)
+        PredictiveIter::new(self, prefix)
     }
 
     /// Gets the number of stored keys.
@@ -554,7 +554,7 @@ mod tests {
         }
         assert!(iterator.next().is_none());
 
-        let mut iterator = set.prefix_iter("idea".as_bytes());
+        let mut iterator = set.predictive_iter("idea".as_bytes());
         {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(1, id);
