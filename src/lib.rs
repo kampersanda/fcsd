@@ -48,10 +48,15 @@ pub const DEFAULT_BUCKET_SIZE: usize = 8;
 /// Serial cookie value for serialization.
 const SERIAL_COOKIE: u32 = 114514;
 
-/// Fast and compact front-coding string dictionary.
+/// Fast and compact indexed string set using Front Coding.
 ///
-/// This provides a bijection between string keys and interger IDs.
-/// Integer IDs from `[0..n-1]` are assigned to `n` keys in the lexicographical order.
+/// This implements an indexed set of strings in a compressed format based on Front Coding.
+/// `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
+/// The set supports the following queries:
+///
+///  - `Locate` gets the index of a string key.
+///  - `Decode` gets the string with an index.
+///  - `Predict` enumerates the strings starting from a prefix.
 ///
 /// # Example
 ///
@@ -61,22 +66,31 @@ const SERIAL_COOKIE: u32 = 114514;
 /// // Input string keys should be sorted and unique.
 /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
 ///
-/// // Builds the dictionary.
+/// // Builds an indexed set.
 /// let set = Set::new(keys).unwrap();
 /// assert_eq!(set.len(), keys.len());
 ///
-/// // Locates IDs associated with given keys.
+/// // Gets indexes associated with given keys.
 /// let mut locator = set.locator();
 /// assert_eq!(locator.run(b"ICML"), Some(1));
 /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
 /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
 ///
-/// // Decodes string keys associated with given IDs.
+/// // Decodes string keys from given indexes.
 /// let mut decoder = set.decoder();
 /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
 /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
 ///
-/// // Enumerates string keys starting with a prefix.
+/// // Enumerates indexes and keys stored in the set.
+/// let mut iter = set.iter();
+/// assert_eq!(iter.next(), Some((0, b"ICDM".to_vec())));
+/// assert_eq!(iter.next(), Some((1, b"ICML".to_vec())));
+/// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
+/// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
+/// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
+/// assert_eq!(iter.next(), None);
+///
+/// // Enumerates indexes and keys starting with a prefix.
 /// let mut iter = set.prefix_iter(b"SIG");
 /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
 /// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
