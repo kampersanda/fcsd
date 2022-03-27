@@ -1,4 +1,4 @@
-# Fcsd: Fast and compact indexed string set using Front Coding
+# Front-coded string dictionary: Fast and compact indexed string set
 
 ![](https://github.com/kampersanda/fcsd/actions/workflows/rust.yml/badge.svg)
 [![Documentation](https://docs.rs/fcsd/badge.svg)](https://docs.rs/fcsd)
@@ -6,14 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/kampersanda/fcsd/blob/master/LICENSE)
 
 This is a Rust library to store an indexed set of strings and support fast queires.
-The data structure is a plain Front-Coding string dictionary described in [*Martínez-Prieto et al., Practical compressed string dictionaries, INFOSYS 2016*](https://doi.org/10.1016/j.is.2015.08.008).
+The data structure is a plain front-coded string dictionary described in [*Martínez-Prieto et al., Practical compressed string dictionaries, INFOSYS 2016*](https://doi.org/10.1016/j.is.2015.08.008).
 
 [Japanese description](https://kampersanda.hatenablog.jp/entry/2021/09/29/123644)
 
 ## Features
 
-- **Indexed set.** Fcsd implements an indexed set of strings in a compressed format based on Front Coding. `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
-- **Simple and fast compression/decompression.** Fcsd maintains a set of strings in a compressed space through *Front Coding*, a differential compression technique for strings, allowing for fast decompression operations.
+- **Indexed set.** Fcsd implements an indexed set of strings in a compressed format. `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
+- **Simple and fast compression/decompression.** Fcsd maintains a set of strings in a compressed space through *front coding*, a differential compression technique for strings, allowing for fast decompression operations.
 - **Random access.** Fcsd maintains strings through a bucketization technique enabling to directly decompress arbitrary strings and perform binary search for strings.
 
 ## Example

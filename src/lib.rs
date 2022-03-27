@@ -1,6 +1,6 @@
-//! # Fast and compact indexed string set using Front Coding.
+//! # Fast and compact indexed string set using front coding.
 //!
-//! This crate provides an indexed set of strings in a compressed format based on Front Coding.
+//! This crate provides an indexed set of strings in a compressed format based on front coding.
 //! `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
 //!
 //! ## Supported queries
@@ -42,9 +42,9 @@ pub const DEFAULT_BUCKET_SIZE: usize = 8;
 /// Serial cookie value for serialization.
 const SERIAL_COOKIE: u32 = 114514;
 
-/// Fast and compact indexed string set using Front Coding.
+/// Fast and compact indexed string set using front coding.
 ///
-/// This implements an indexed set of strings in a compressed format based on Front Coding.
+/// This implements an indexed set of strings in a compressed format based on front coding.
 /// `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
 ///
 /// ## Supported queries
