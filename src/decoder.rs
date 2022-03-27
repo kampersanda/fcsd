@@ -1,23 +1,23 @@
 use crate::utils;
-use crate::FcDict;
+use crate::Set;
 
 /// Decoder class to get string keys associated with given ids.
 #[derive(Clone)]
-pub struct FcDecoder<'a> {
-    dict: &'a FcDict,
+pub struct Decoder<'a> {
+    set: &'a Set,
     dec: Vec<u8>,
 }
 
-impl<'a> FcDecoder<'a> {
-    /// Makes a [`FcDecoder`].
+impl<'a> Decoder<'a> {
+    /// Makes a [`Decoder`].
     ///
     /// # Arguments
     ///
-    ///  - `dict`: Front-coding dictionay.
-    pub fn new(dict: &'a FcDict) -> Self {
+    ///  - `set`: Front-coding dictionay.
+    pub fn new(set: &'a Set) -> Self {
         Self {
-            dict,
-            dec: Vec::with_capacity(dict.max_length()),
+            set,
+            dec: Vec::with_capacity(set.max_length()),
         }
     }
 
@@ -35,18 +35,18 @@ impl<'a> FcDecoder<'a> {
     ///
     ///  - Constant
     pub fn run(&mut self, id: usize) -> Vec<u8> {
-        let (dict, dec) = (&self.dict, &mut self.dec);
-        assert!(id < dict.num_keys());
+        let (set, dec) = (&self.set, &mut self.dec);
+        assert!(id < set.len());
 
-        let (bi, bj) = (dict.bucket_id(id), dict.pos_in_bucket(id));
-        let mut pos = dict.decode_header(bi, dec);
+        let (bi, bj) = (set.bucket_id(id), set.pos_in_bucket(id));
+        let mut pos = set.decode_header(bi, dec);
 
         for _ in 0..bj {
-            let (lcp, num) = utils::vbyte::decode(&dict.serialized[pos..]);
+            let (lcp, num) = utils::vbyte::decode(&set.serialized[pos..]);
             pos += num;
 
             dec.resize(lcp, 0);
-            pos = dict.decode_next(pos, dec);
+            pos = set.decode_next(pos, dec);
         }
 
         dec.clone()

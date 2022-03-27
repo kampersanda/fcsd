@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+const BUCKET_SIZES: [usize; 4] = [4, 8, 16, 32];
+
 fn main() {
     memory("data/words-100000");
     memory("data/wiki-urls-100000");
@@ -13,10 +15,14 @@ fn memory(filename: &str) {
 
     // +1 is for the terminator.
     let orig_size = keys.iter().fold(0, |acc, k| acc + k.len() + 1);
-    {
-        let dict = fcsd::FcDict::new(&keys).unwrap();
-        print("fcsd", dict.size_in_bytes(), orig_size);
+
+    // Fcsd
+    for &bs in &BUCKET_SIZES {
+        let dict = fcsd::Set::with_bucket_size(&keys, bs).unwrap();
+        print(&format!("fcsd<{}>", bs), dict.size_in_bytes(), orig_size);
     }
+
+    // Fst
     {
         let map = fst::Map::from_iter(keys.iter().enumerate().map(|(i, k)| (k, i as u64))).unwrap();
         print("fst", map.as_fst().as_bytes().len(), orig_size);

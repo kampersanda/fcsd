@@ -11,6 +11,8 @@ const SAMPLE_SIZE: usize = 10;
 const WARM_UP_TIME: Duration = Duration::from_secs(5);
 const MEASURE_TIME: Duration = Duration::from_secs(10);
 
+const BUCKET_SIZES: [usize; 4] = [4, 8, 16, 32];
+
 fn criterion_build(c: &mut Criterion) {
     let mut group = c.benchmark_group("build");
     group.sample_size(SAMPLE_SIZE);
@@ -34,11 +36,13 @@ fn criterion_locate(c: &mut Criterion) {
 }
 
 fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
-    group.bench_function("fcsd", |b| {
-        b.iter(|| {
-            fcsd::FcDict::new(keys).unwrap();
+    for &bs in &BUCKET_SIZES {
+        group.bench_function(format!("fcsd<{}>", bs), |b| {
+            b.iter(|| {
+                fcsd::Set::with_bucket_size(keys, bs).unwrap();
+            });
         });
-    });
+    }
 
     group.bench_function("fst", |b| {
         b.iter(|| {
@@ -48,19 +52,21 @@ fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
 }
 
 fn locate(group: &mut BenchmarkGroup<WallTime>, keys: &[String], queries: &[String]) {
-    group.bench_function("fcsd", |b| {
-        let dict = fcsd::FcDict::new(keys).unwrap();
-        let mut locator = dict.locator();
-        b.iter(|| {
-            let mut sum = 0;
-            for q in queries {
-                sum += locator.run(q).unwrap();
-            }
-            if sum == 0 {
-                panic!();
-            }
+    for &bs in &BUCKET_SIZES {
+        group.bench_function(format!("fcsd<{}>", bs), |b| {
+            let dict = fcsd::Set::with_bucket_size(keys, bs).unwrap();
+            let mut locator = dict.locator();
+            b.iter(|| {
+                let mut sum = 0;
+                for q in queries {
+                    sum += locator.run(q).unwrap();
+                }
+                if sum == 0 {
+                    panic!();
+                }
+            });
         });
-    });
+    }
 
     group.bench_function("fst", |b| {
         let dict =
