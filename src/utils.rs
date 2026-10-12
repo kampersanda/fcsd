@@ -42,7 +42,7 @@ pub fn is_prefix(a: &[u8], b: &[u8]) -> bool {
 /// Checks if END_MARKER is contained.
 #[inline(always)]
 pub fn contains_end_marker(a: &[u8]) -> bool {
-    a.iter().any(|&c| c == END_MARKER)
+    a.contains(&END_MARKER)
 }
 
 #[inline(always)]

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Format and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - name: Check formatting
+        run: cargo +stable fmt --all -- --check
+      - name: Run Clippy
+        run: cargo +stable clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test on Rust ${{ matrix.rust }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust:
+          - stable
+          - "1.81.0"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust ${{ matrix.rust }}
+        run: rustup toolchain install ${{ matrix.rust }} --profile minimal
+      - name: Run tests
+        run: cargo +${{ matrix.rust }} test --workspace --all-features
+      - name: Compile benchmarks
+        if: matrix.rust == 'stable'
+        run: cargo +stable bench --workspace --no-run
