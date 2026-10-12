@@ -407,7 +407,6 @@ impl Set {
     }
 
     fn read_vbyte(bytes: &[u8], pos: &mut usize) -> Result<usize> {
-        let start = *pos;
         let mut value = 0_usize;
         let mut shift = 0_u32;
         loop {
@@ -419,20 +418,12 @@ impl Set {
             if shift >= usize::BITS || payload > (usize::MAX >> shift) {
                 return Err(anyhow!("vbyte value does not fit in usize"));
             }
-            let shifted = payload << shift;
-            value = value
-                .checked_add(shifted)
-                .ok_or_else(|| anyhow!("vbyte value does not fit in usize"))?;
+            value |= payload << shift;
 
             if byte & 0x80 == 0 {
-                if *pos - start > 1 && payload == 0 {
-                    return Err(anyhow!("vbyte value is not canonically encoded"));
-                }
                 return Ok(value);
             }
-            shift = shift
-                .checked_add(7)
-                .ok_or_else(|| anyhow!("vbyte shift overflow"))?;
+            shift += 7;
         }
     }
 
@@ -864,11 +855,6 @@ mod tests {
         assert!(Set::deserialize_from(&data[..]).is_err());
 
         let mut data = serialize_raw_set(&[0], b"a\0", 1, 3, 7, 1);
-        // The one-bit pointer vector has no room for this high bit.
-        data[12..20].copy_from_slice(&2_u64.to_le_bytes());
-        assert!(Set::deserialize_from(&data[..]).is_err());
-
-        let mut data = serialize_raw_set(&[0], b"a\0", 1, 3, 7, 1);
         // 65 one-bit values require two chunks, but only one is serialized.
         data[20..28].copy_from_slice(&65_u64.to_le_bytes());
         assert!(Set::deserialize_from(&data[..]).is_err());
@@ -883,7 +869,6 @@ mod tests {
             serialize_raw_set(&[0], b"a", 1, 3, 7, 1),
             serialize_raw_set(&[0], b"a\0\x80", 2, 3, 7, 1),
             serialize_raw_set(&[0], b"a\0\x02b\0", 2, 3, 7, 1),
-            serialize_raw_set(&[0], b"a\0\x80\x00b\0", 2, 3, 7, 1),
             serialize_raw_set(
                 &[0],
                 b"a\0\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01\0",
@@ -898,6 +883,12 @@ mod tests {
         for data in malformed {
             assert!(Set::deserialize_from(&data[..]).is_err());
         }
+    }
+
+    #[test]
+    fn test_deserialize_accepts_noncanonical_vbyte() {
+        let data = serialize_raw_set(&[0], b"a\0\x80\x00b\0", 2, 3, 7, 1);
+        assert!(Set::deserialize_from(&data[..]).is_ok());
     }
 
     #[test]

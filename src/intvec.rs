@@ -130,25 +130,11 @@ impl IntVector {
             .len
             .checked_mul(self.bits)
             .ok_or_else(|| Self::invalid_data("packed bit length overflow"))?;
-        let expected_chunks = total_bits
-            .checked_add(63)
-            .ok_or_else(|| Self::invalid_data("packed chunk count overflow"))?
-            / 64;
+        let expected_chunks = Self::words_for(total_bits);
         if self.chunks.len() != expected_chunks {
             return Err(Self::invalid_data(
                 "chunk count does not match length and bit width",
             ));
-        }
-
-        let used_in_last_chunk = total_bits % 64;
-        if used_in_last_chunk != 0 {
-            if let Some(chunk) = self.chunks.last() {
-                if chunk >> used_in_last_chunk != 0 {
-                    return Err(Self::invalid_data(
-                        "unused bits in the final chunk are not zero",
-                    ));
-                }
-            }
         }
         Ok(())
     }
