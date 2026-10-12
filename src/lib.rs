@@ -25,8 +25,6 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::io::{self, Read};
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-
 use builder::Builder;
 use decoder::Decoder;
 pub use errors::{FcsdError, Result};
@@ -216,16 +214,14 @@ impl Set {
     where
         W: io::Write,
     {
-        writer.write_u32::<LittleEndian>(SERIAL_COOKIE)?;
+        utils::write_u32_le(&mut writer, SERIAL_COOKIE)?;
         self.pointers.serialize_into(&mut writer)?;
-        writer.write_u64::<LittleEndian>(self.serialized.len() as u64)?;
-        for &x in &self.serialized {
-            writer.write_u8(x)?;
-        }
-        writer.write_u64::<LittleEndian>(self.len as u64)?;
-        writer.write_u64::<LittleEndian>(self.bucket_bits as u64)?;
-        writer.write_u64::<LittleEndian>(self.bucket_mask as u64)?;
-        writer.write_u64::<LittleEndian>(self.max_length as u64)?;
+        utils::write_u64_le(&mut writer, self.serialized.len() as u64)?;
+        writer.write_all(&self.serialized)?;
+        utils::write_u64_le(&mut writer, self.len as u64)?;
+        utils::write_u64_le(&mut writer, self.bucket_bits as u64)?;
+        utils::write_u64_le(&mut writer, self.bucket_mask as u64)?;
+        utils::write_u64_le(&mut writer, self.max_length as u64)?;
         Ok(())
     }
 
@@ -279,7 +275,7 @@ impl Set {
     where
         R: io::Read,
     {
-        let cookie = reader.read_u32::<LittleEndian>()?;
+        let cookie = utils::read_u32_le(&mut reader)?;
         if cookie != SERIAL_COOKIE {
             return Err(FcsdError::InvalidData("unknown cookie value"));
         }
@@ -321,8 +317,7 @@ impl Set {
     }
 
     fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> Result<usize> {
-        usize::try_from(reader.read_u64::<LittleEndian>()?)
-            .map_err(|_| FcsdError::InvalidData(error))
+        usize::try_from(utils::read_u64_le(reader)?).map_err(|_| FcsdError::InvalidData(error))
     }
 
     fn validate_deserialized(&self) -> Result<()> {
@@ -625,7 +620,6 @@ impl Set {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use byteorder::{LittleEndian, WriteBytesExt};
     use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaChaRng;
 
@@ -650,17 +644,16 @@ mod tests {
         max_length: usize,
     ) -> Vec<u8> {
         let mut data = Vec::new();
-        data.write_u32::<LittleEndian>(SERIAL_COOKIE).unwrap();
+        utils::write_u32_le(&mut data, SERIAL_COOKIE).unwrap();
         IntVector::build(pointers)
             .serialize_into(&mut data)
             .unwrap();
-        data.write_u64::<LittleEndian>(serialized.len() as u64)
-            .unwrap();
+        utils::write_u64_le(&mut data, serialized.len() as u64).unwrap();
         data.extend_from_slice(serialized);
-        data.write_u64::<LittleEndian>(len as u64).unwrap();
-        data.write_u64::<LittleEndian>(bucket_bits as u64).unwrap();
-        data.write_u64::<LittleEndian>(bucket_mask as u64).unwrap();
-        data.write_u64::<LittleEndian>(max_length as u64).unwrap();
+        utils::write_u64_le(&mut data, len as u64).unwrap();
+        utils::write_u64_le(&mut data, bucket_bits as u64).unwrap();
+        utils::write_u64_le(&mut data, bucket_mask as u64).unwrap();
+        utils::write_u64_le(&mut data, max_length as u64).unwrap();
         data
     }
 
@@ -861,8 +854,8 @@ mod tests {
     #[test]
     fn test_deserialize_rejects_excessive_allocations() {
         let mut data = Vec::new();
-        data.write_u32::<LittleEndian>(SERIAL_COOKIE).unwrap();
-        data.write_u64::<LittleEndian>(32 * 1024 * 1024).unwrap();
+        utils::write_u32_le(&mut data, SERIAL_COOKIE).unwrap();
+        utils::write_u64_le(&mut data, 32 * 1024 * 1024).unwrap();
         assert!(Set::deserialize_from(&data[..]).is_err());
 
         let data = serialize_raw_set(&[0], b"a\0", 1, 3, 7, 1);

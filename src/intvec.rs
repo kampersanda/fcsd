@@ -1,5 +1,4 @@
 use crate::utils;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::convert::TryFrom;
 use std::io;
 
@@ -58,13 +57,13 @@ impl IntVector {
     }
 
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
-        writer.write_u64::<LittleEndian>(self.chunks.len() as u64)?;
+        utils::write_u64_le(&mut writer, self.chunks.len() as u64)?;
         for &x in &self.chunks {
-            writer.write_u64::<LittleEndian>(x)?;
+            utils::write_u64_le(&mut writer, x)?;
         }
-        writer.write_u64::<LittleEndian>(self.len as u64)?;
-        writer.write_u64::<LittleEndian>(self.bits as u64)?;
-        writer.write_u64::<LittleEndian>(self.mask)?;
+        utils::write_u64_le(&mut writer, self.len as u64)?;
+        utils::write_u64_le(&mut writer, self.bits as u64)?;
+        utils::write_u64_le(&mut writer, self.mask)?;
         Ok(())
     }
 
@@ -84,12 +83,12 @@ impl IntVector {
 
         let mut chunks = Vec::new();
         for _ in 0..chunks_len {
-            chunks.push(reader.read_u64::<LittleEndian>()?);
+            chunks.push(utils::read_u64_le(&mut reader)?);
         }
 
         let len = Self::read_usize(&mut reader, "element count does not fit in usize")?;
         let bits = Self::read_usize(&mut reader, "bit width does not fit in usize")?;
-        let mask = reader.read_u64::<LittleEndian>()?;
+        let mask = utils::read_u64_le(&mut reader)?;
         let vector = Self {
             chunks,
             len,
@@ -137,7 +136,7 @@ impl IntVector {
     }
 
     fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> io::Result<usize> {
-        usize::try_from(reader.read_u64::<LittleEndian>()?).map_err(|_| Self::invalid_data(error))
+        usize::try_from(utils::read_u64_le(reader)?).map_err(|_| Self::invalid_data(error))
     }
 
     #[inline(always)]

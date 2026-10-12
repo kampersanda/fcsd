@@ -15,9 +15,6 @@ categories = ["data-structures"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-byteorder = "1.4.3"
-
 [dev-dependencies]
 rand = "0.10"
 rand_chacha = "0.10"
