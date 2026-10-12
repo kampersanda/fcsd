@@ -13,7 +13,7 @@ pub struct IntVector {
 impl IntVector {
     pub fn build(input: &[u64]) -> Self {
         let len = input.len();
-        let bits = utils::needed_bits(*input.iter().max().unwrap());
+        let bits = utils::needed_bits(input.iter().copied().max().unwrap_or(0));
         let mask = (1 << bits) - 1;
 
         let mut chunks = vec![0; Self::words_for(len * bits)];
