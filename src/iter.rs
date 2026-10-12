@@ -1,4 +1,5 @@
 use crate::Set;
+use std::iter::FusedIterator;
 
 /// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]
@@ -45,6 +46,59 @@ impl<'a> Iterator for Iter<'a> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.set.len(), Some(self.set.len()))
+        let remaining = self.set.len().saturating_sub(self.id);
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for Iter<'_> {}
+
+impl FusedIterator for Iter<'_> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn size_hint_tracks_remaining_items() {
+        let set = Set::new(["alpha", "beta", "gamma"]).unwrap();
+        let mut iter = set.iter();
+
+        assert_eq!(iter.size_hint(), (3, Some(3)));
+        assert_eq!(iter.len(), 3);
+
+        assert_eq!(iter.next(), Some((0, b"alpha".to_vec())));
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+        assert_eq!(iter.len(), 2);
+
+        assert_eq!(iter.next(), Some((1, b"beta".to_vec())));
+        assert_eq!(iter.size_hint(), (1, Some(1)));
+
+        assert_eq!(iter.next(), Some((2, b"gamma".to_vec())));
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+        assert_eq!(iter.len(), 0);
+
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+    }
+
+    #[test]
+    fn empty_iter_has_no_remaining_items() {
+        let set = Set::new(std::iter::empty::<&str>()).unwrap();
+        let mut iter = set.iter();
+
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn iter_is_fused() {
+        fn assert_fused<I: FusedIterator>(_iter: I) {}
+
+        let set = Set::new(["alpha"]).unwrap();
+        assert_fused(set.iter());
     }
 }
