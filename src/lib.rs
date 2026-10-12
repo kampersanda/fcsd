@@ -620,18 +620,26 @@ impl Set {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{RngExt, SeedableRng};
-    use rand_chacha::ChaChaRng;
 
-    fn gen_random_keys(num: usize, max_len: usize, seed: u64) -> Vec<Vec<u8>> {
-        let mut rng = ChaChaRng::seed_from_u64(seed);
-        let mut keys = Vec::with_capacity(num);
-        for _ in 0..num {
-            let len = rng.random_range(1..max_len);
-            keys.push((0..len).map(|_| rng.random_range(1..=4)).collect());
+    fn enumerate_keys(alphabet: &[u8], max_len: usize) -> Vec<Vec<u8>> {
+        fn append_keys(
+            keys: &mut Vec<Vec<u8>>,
+            prefix: &mut Vec<u8>,
+            alphabet: &[u8],
+            max_len: usize,
+        ) {
+            for &byte in alphabet {
+                prefix.push(byte);
+                keys.push(prefix.clone());
+                if prefix.len() < max_len {
+                    append_keys(keys, prefix, alphabet, max_len);
+                }
+                prefix.pop();
+            }
         }
-        keys.sort();
-        keys.dedup();
+
+        let mut keys = Vec::new();
+        append_keys(&mut keys, &mut Vec::new(), alphabet, max_len);
         keys
     }
 
@@ -808,8 +816,9 @@ mod tests {
     }
 
     #[test]
-    fn test_random() {
-        let keys = gen_random_keys(10000, 8, 11);
+    fn test_exhaustive_small_alphabet_roundtrip() {
+        let keys = enumerate_keys(&[1, 2, 3, 4], 6);
+        assert_eq!(keys.len(), 5_460);
         let mut builder = Builder::new(8).unwrap();
 
         for key in &keys {
