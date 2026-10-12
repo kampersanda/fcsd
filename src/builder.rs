@@ -41,7 +41,7 @@ impl Builder {
                 serialized: Vec::new(),
                 last_key: Vec::new(),
                 len: 0,
-                bucket_bits: utils::needed_bits((bucket_size - 1) as u64),
+                bucket_bits: (bucket_size - 1).count_ones() as usize,
                 bucket_mask: bucket_size - 1,
                 max_length: 0,
             })

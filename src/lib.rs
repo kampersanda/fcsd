@@ -22,7 +22,7 @@ mod utils;
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
-use std::io;
+use std::io::{self, Read};
 
 use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -39,9 +39,6 @@ pub const END_MARKER: u8 = 0;
 
 /// Default parameter for the number of keys in each bucket.
 pub const DEFAULT_BUCKET_SIZE: usize = 8;
-
-/// Default upper bound for the packed pointers and keys allocated while deserializing a set.
-pub const DEFAULT_MAX_DESERIALIZED_BYTES: usize = 256 * 1024 * 1024;
 
 /// Serial cookie value for serialization.
 const SERIAL_COOKIE: u32 = 114514;
@@ -237,13 +234,10 @@ impl Set {
     ///
     ///  - `reader`: Readable stream.
     ///
-    /// This method limits allocations to [`DEFAULT_MAX_DESERIALIZED_BYTES`].
-    /// Use [`Set::deserialize_from_with_limit`] to choose a different limit.
-    ///
     /// # Errors
     ///
-    /// Returns an error if the input is truncated, exceeds the allocation
-    /// limit, or contains inconsistent metadata or front-coded keys.
+    /// Returns an error if the input is truncated or contains inconsistent
+    /// metadata or front-coded keys.
     ///
     /// # Example
     ///
@@ -262,7 +256,7 @@ impl Set {
     where
         R: io::Read,
     {
-        Self::deserialize_from_with_limit(reader, DEFAULT_MAX_DESERIALIZED_BYTES)
+        Self::deserialize_from_with_limit(reader, usize::MAX)
     }
 
     /// Deserializes the dictionary from a reader with an allocation limit.
@@ -289,23 +283,22 @@ impl Set {
             return Err(anyhow!("unknown cookie value"));
         }
         let pointers = IntVector::deserialize_from_with_limit(&mut reader, max_bytes)?;
-        let remaining_bytes = max_bytes
-            .checked_sub(pointers.allocated_bytes())
-            .ok_or_else(|| anyhow!("pointer allocation exceeds the deserialization limit"))?;
+        let remaining_bytes = max_bytes - pointers.allocated_bytes();
         let serialized = {
-            let len = usize::try_from(reader.read_u64::<LittleEndian>()?)
-                .map_err(|_| anyhow!("serialized length does not fit in usize"))?;
+            let len = Self::read_usize(&mut reader, "serialized length")?;
             if len > remaining_bytes {
                 return Err(anyhow!(
                     "serialized allocation exceeds the deserialization limit"
                 ));
             }
             let mut serialized = Vec::new();
-            serialized
-                .try_reserve_exact(len)
-                .map_err(|_| anyhow!("serialized allocation is too large"))?;
-            serialized.resize(len, 0);
-            reader.read_exact(&mut serialized)?;
+            reader
+                .by_ref()
+                .take(len as u64)
+                .read_to_end(&mut serialized)?;
+            if serialized.len() != len {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
+            }
             serialized
         };
 
@@ -339,7 +332,7 @@ impl Set {
         if !utils::is_power_of_two(bucket_size) {
             return Err(anyhow!("bucket size must be a power of two"));
         }
-        if self.bucket_bits != utils::needed_bits(self.bucket_mask as u64) {
+        if self.bucket_bits != self.bucket_mask.count_ones() as usize {
             return Err(anyhow!("bucket bit width does not match bucket mask"));
         }
 
@@ -355,10 +348,11 @@ impl Set {
         }
 
         let mut pos = 0;
-        let mut key_length = 0_usize;
+        let mut previous_key = Vec::new();
+        let mut key = Vec::new();
         let mut actual_max_length = 0;
         for id in 0..self.len {
-            if id % bucket_size == 0 {
+            let lcp = if id % bucket_size == 0 {
                 let bucket = id / bucket_size;
                 let pointer = usize::try_from(self.pointers.get(bucket))
                     .map_err(|_| anyhow!("bucket pointer does not fit in usize"))?;
@@ -367,16 +361,18 @@ impl Set {
                         "bucket pointers must match increasing bucket offsets"
                     ));
                 }
-                key_length = 0;
+                0
             } else {
-                let lcp = Self::read_vbyte(&self.serialized, &mut pos)?;
-                if lcp > key_length {
+                let (lcp, bytes) = utils::vbyte::try_decode(&self.serialized[pos..])
+                    .ok_or_else(|| anyhow!("invalid vbyte value"))?;
+                pos += bytes;
+                if lcp > previous_key.len() {
                     return Err(anyhow!(
                         "front-coded prefix exceeds the previous key length"
                     ));
                 }
-                key_length = lcp;
-            }
+                lcp
+            };
 
             let suffix = self
                 .serialized
@@ -386,13 +382,20 @@ impl Set {
                 .iter()
                 .position(|&byte| byte == END_MARKER)
                 .ok_or_else(|| anyhow!("key is missing its end marker"))?;
-            key_length = key_length
-                .checked_add(suffix_len)
-                .ok_or_else(|| anyhow!("decoded key length overflow"))?;
-            pos = pos
-                .checked_add(suffix_len + 1)
-                .ok_or_else(|| anyhow!("serialized key offset overflow"))?;
-            actual_max_length = actual_max_length.max(key_length);
+            if suffix_len == 0 {
+                return Err(anyhow!("keys must not be empty"));
+            }
+
+            key.clear();
+            key.extend_from_slice(&previous_key[..lcp]);
+            key.extend_from_slice(&suffix[..suffix_len]);
+            if id != 0 && key <= previous_key {
+                return Err(anyhow!("keys must be sorted and unique"));
+            }
+
+            pos += suffix_len + 1;
+            actual_max_length = actual_max_length.max(key.len());
+            std::mem::swap(&mut previous_key, &mut key);
         }
 
         if pos != self.serialized.len() {
@@ -404,27 +407,6 @@ impl Set {
             return Err(anyhow!("maximum key length does not match serialized keys"));
         }
         Ok(())
-    }
-
-    fn read_vbyte(bytes: &[u8], pos: &mut usize) -> Result<usize> {
-        let mut value = 0_usize;
-        let mut shift = 0_u32;
-        loop {
-            let byte = *bytes
-                .get(*pos)
-                .ok_or_else(|| anyhow!("unterminated vbyte value"))?;
-            *pos += 1;
-            let payload = usize::from(byte & 0x7f);
-            if shift >= usize::BITS || payload > (usize::MAX >> shift) {
-                return Err(anyhow!("vbyte value does not fit in usize"));
-            }
-            value |= payload << shift;
-
-            if byte & 0x80 == 0 {
-                return Ok(value);
-            }
-            shift += 7;
-        }
     }
 
     /// Makes a class to get ids of given string keys.
@@ -789,6 +771,21 @@ mod tests {
     }
 
     #[test]
+    fn test_bucket_size_one() {
+        let set = Set::with_bucket_size(["a", "b", "c"], 1).unwrap();
+        assert_eq!(set.bucket_size(), 1);
+
+        let mut decoder = set.decoder();
+        assert_eq!(decoder.run(0), b"a");
+        assert_eq!(decoder.run(1), b"b");
+        assert_eq!(decoder.run(2), b"c");
+
+        let mut data = Vec::new();
+        set.serialize_into(&mut data).unwrap();
+        assert!(Set::deserialize_from(&data[..]).is_ok());
+    }
+
+    #[test]
     fn test_random() {
         let keys = gen_random_keys(10000, 8, 11);
         let mut builder = Builder::new(8).unwrap();
@@ -836,10 +833,7 @@ mod tests {
     fn test_deserialize_rejects_excessive_allocations() {
         let mut data = Vec::new();
         data.write_u32::<LittleEndian>(SERIAL_COOKIE).unwrap();
-        data.write_u64::<LittleEndian>(
-            (DEFAULT_MAX_DESERIALIZED_BYTES / std::mem::size_of::<u64>() + 1) as u64,
-        )
-        .unwrap();
+        data.write_u64::<LittleEndian>(32 * 1024 * 1024).unwrap();
         assert!(Set::deserialize_from(&data[..]).is_err());
 
         let data = serialize_raw_set(&[0], b"a\0", 1, 3, 7, 1);
@@ -869,6 +863,10 @@ mod tests {
             serialize_raw_set(&[0], b"a", 1, 3, 7, 1),
             serialize_raw_set(&[0], b"a\0\x80", 2, 3, 7, 1),
             serialize_raw_set(&[0], b"a\0\x02b\0", 2, 3, 7, 1),
+            serialize_raw_set(&[0], b"\0", 1, 3, 7, 0),
+            serialize_raw_set(&[0], b"a\0\x00a\0", 2, 3, 7, 1),
+            serialize_raw_set(&[0], b"b\0\x00a\0", 2, 3, 7, 1),
+            serialize_raw_set(&[0, 2], b"b\0a\0", 2, 0, 0, 1),
             serialize_raw_set(
                 &[0],
                 b"a\0\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01\0",

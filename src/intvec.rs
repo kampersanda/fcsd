@@ -72,8 +72,7 @@ impl IntVector {
         mut reader: R,
         max_bytes: usize,
     ) -> io::Result<Self> {
-        let chunks_len = usize::try_from(reader.read_u64::<LittleEndian>()?)
-            .map_err(|_| Self::invalid_data("chunk count does not fit in usize"))?;
+        let chunks_len = Self::read_usize(&mut reader, "chunk count does not fit in usize")?;
         let chunks_bytes = chunks_len
             .checked_mul(std::mem::size_of::<u64>())
             .ok_or_else(|| Self::invalid_data("chunk allocation size overflow"))?;
@@ -84,18 +83,12 @@ impl IntVector {
         }
 
         let mut chunks = Vec::new();
-        chunks
-            .try_reserve_exact(chunks_len)
-            .map_err(|_| Self::invalid_data("chunk allocation is too large"))?;
-        chunks.resize(chunks_len, 0);
-        for chunk in &mut chunks {
-            *chunk = reader.read_u64::<LittleEndian>()?;
+        for _ in 0..chunks_len {
+            chunks.push(reader.read_u64::<LittleEndian>()?);
         }
 
-        let len = usize::try_from(reader.read_u64::<LittleEndian>()?)
-            .map_err(|_| Self::invalid_data("element count does not fit in usize"))?;
-        let bits = usize::try_from(reader.read_u64::<LittleEndian>()?)
-            .map_err(|_| Self::invalid_data("bit width does not fit in usize"))?;
+        let len = Self::read_usize(&mut reader, "element count does not fit in usize")?;
+        let bits = Self::read_usize(&mut reader, "bit width does not fit in usize")?;
         let mask = reader.read_u64::<LittleEndian>()?;
         let vector = Self {
             chunks,
@@ -141,6 +134,10 @@ impl IntVector {
 
     fn invalid_data(message: &'static str) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidData, message)
+    }
+
+    fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> io::Result<usize> {
+        usize::try_from(reader.read_u64::<LittleEndian>()?).map_err(|_| Self::invalid_data(error))
     }
 
     #[inline(always)]

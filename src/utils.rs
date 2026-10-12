@@ -73,16 +73,25 @@ pub mod vbyte {
         }
         bytes.push((val & 127) as u8);
     }
-    #[inline(always)]
-    pub const fn decode(bytes: &[u8]) -> (usize, usize) {
+    pub fn try_decode(bytes: &[u8]) -> Option<(usize, usize)> {
         let mut val = 0;
-        let (mut i, mut j) = (0, 0);
-        while (bytes[i] & 0x80) != 0 {
-            val |= ((bytes[i] & 127) as usize) << j;
+        let (mut i, mut shift) = (0, 0);
+        loop {
+            let byte = *bytes.get(i)?;
+            let payload = (byte & 127) as usize;
+            if shift >= usize::BITS || payload > (usize::MAX >> shift) {
+                return None;
+            }
+            val |= payload << shift;
             i += 1;
-            j += 7;
+            if byte & 0x80 == 0 {
+                return Some((val, i));
+            }
+            shift += 7;
         }
-        val |= ((bytes[i] & 127) as usize) << j;
-        (val, i + 1)
+    }
+    #[inline(always)]
+    pub fn decode(bytes: &[u8]) -> (usize, usize) {
+        try_decode(bytes).unwrap()
     }
 }
