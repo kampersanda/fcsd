@@ -1,6 +1,27 @@
 use std::cmp::Ordering;
+use std::io::{self, Read, Write};
 
 use crate::END_MARKER;
+
+pub fn read_u32_le<R: Read>(mut reader: R) -> io::Result<u32> {
+    let mut bytes = [0; size_of::<u32>()];
+    reader.read_exact(&mut bytes)?;
+    Ok(u32::from_le_bytes(bytes))
+}
+
+pub fn read_u64_le<R: Read>(mut reader: R) -> io::Result<u64> {
+    let mut bytes = [0; size_of::<u64>()];
+    reader.read_exact(&mut bytes)?;
+    Ok(u64::from_le_bytes(bytes))
+}
+
+pub fn write_u32_le<W: Write>(mut writer: W, value: u32) -> io::Result<()> {
+    writer.write_all(&value.to_le_bytes())
+}
+
+pub fn write_u64_le<W: Write>(mut writer: W, value: u64) -> io::Result<()> {
+    writer.write_all(&value.to_le_bytes())
+}
 
 /// Returns (lcp, cmp) such that
 ///  - lcp: Length of longest commom prefix of two strings.
