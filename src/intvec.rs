@@ -63,7 +63,7 @@ impl IntVector {
         }
         writer.write_u64::<LittleEndian>(self.len as u64)?;
         writer.write_u64::<LittleEndian>(self.bits as u64)?;
-        writer.write_u64::<LittleEndian>(self.mask as u64)?;
+        writer.write_u64::<LittleEndian>(self.mask)?;
         Ok(())
     }
 
@@ -89,7 +89,7 @@ impl IntVector {
 
     #[inline(always)]
     const fn words_for(bits: usize) -> usize {
-        (bits + 63) / 64
+        bits.div_ceil(64)
     }
 
     #[inline(always)]

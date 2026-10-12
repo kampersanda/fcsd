@@ -291,7 +291,7 @@ impl Set {
     /// assert_eq!(locator.run(b"SIGMOD"), Some(4));
     /// assert_eq!(locator.run(b"SIGSPATIAL"), None);
     /// ```
-    pub fn locator(&self) -> Locator {
+    pub fn locator(&self) -> Locator<'_> {
         Locator::new(self)
     }
 
@@ -309,7 +309,7 @@ impl Set {
     /// assert_eq!(decoder.run(0), b"ICDM".to_vec());
     /// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
     /// ```
-    pub fn decoder(&self) -> Decoder {
+    pub fn decoder(&self) -> Decoder<'_> {
         Decoder::new(self)
     }
 
@@ -331,7 +331,7 @@ impl Set {
     /// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter::new(self)
     }
 
@@ -357,7 +357,7 @@ impl Set {
     /// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn predictive_iter<P>(&self, prefix: P) -> PredictiveIter
+    pub fn predictive_iter<P>(&self, prefix: P) -> PredictiveIter<'_>
     where
         P: AsRef<[u8]>,
     {
@@ -531,8 +531,8 @@ mod tests {
         let set = builder.finish();
 
         let mut locator = set.locator();
-        for i in 0..keys.len() {
-            let id = locator.run(keys[i].as_bytes()).unwrap();
+        for (i, key) in keys.iter().enumerate() {
+            let id = locator.run(key.as_bytes()).unwrap();
             assert_eq!(i, id);
         }
         assert!(locator.run("aaa".as_bytes()).is_none());
@@ -541,15 +541,15 @@ mod tests {
         assert!(locator.run("zzz".as_bytes()).is_none());
 
         let mut decoder = set.decoder();
-        for i in 0..keys.len() {
-            assert_eq!(keys[i].as_bytes(), &decoder.run(i));
+        for (i, key) in keys.iter().enumerate() {
+            assert_eq!(key.as_bytes(), &decoder.run(i));
         }
 
         let mut iterator = set.iter();
-        for i in 0..keys.len() {
+        for (i, key) in keys.iter().enumerate() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(keys[i].as_bytes(), &dec);
+            assert_eq!(key.as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
 
@@ -577,10 +577,10 @@ mod tests {
 
         let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
-        for i in 0..keys.len() {
+        for (i, key) in keys.iter().enumerate() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(keys[i].as_bytes(), &dec);
+            assert_eq!(key.as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
     }
@@ -596,22 +596,22 @@ mod tests {
         let set = builder.finish();
 
         let mut locator = set.locator();
-        for i in 0..keys.len() {
-            let id = locator.run(&keys[i]).unwrap();
+        for (i, key) in keys.iter().enumerate() {
+            let id = locator.run(key).unwrap();
             assert_eq!(i, id);
         }
 
         let mut decoder = set.decoder();
-        for i in 0..keys.len() {
+        for (i, key) in keys.iter().enumerate() {
             let dec = decoder.run(i);
-            assert_eq!(&keys[i], &dec);
+            assert_eq!(key, &dec);
         }
 
         let mut iterator = set.iter();
-        for i in 0..keys.len() {
+        for (i, key) in keys.iter().enumerate() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(&keys[i], &dec);
+            assert_eq!(key, &dec);
         }
         assert!(iterator.next().is_none());
 
@@ -621,10 +621,10 @@ mod tests {
 
         let other = Set::deserialize_from(&buffer[..]).unwrap();
         let mut iterator = other.iter();
-        for i in 0..keys.len() {
+        for (i, key) in keys.iter().enumerate() {
             let (id, dec) = iterator.next().unwrap();
             assert_eq!(i, id);
-            assert_eq!(&keys[i], &dec);
+            assert_eq!(key, &dec);
         }
         assert!(iterator.next().is_none());
     }
