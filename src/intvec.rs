@@ -1,5 +1,6 @@
 use crate::utils;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::convert::TryFrom;
 use std::io;
 
 #[derive(Clone)]
@@ -67,24 +68,76 @@ impl IntVector {
         Ok(())
     }
 
-    pub fn deserialize_from<R: io::Read>(mut reader: R) -> io::Result<Self> {
-        let chunks = {
-            let len = reader.read_u64::<LittleEndian>()? as usize;
-            let mut chunks = vec![0; len];
-            for x in chunks.iter_mut() {
-                *x = reader.read_u64::<LittleEndian>()?;
-            }
-            chunks
-        };
-        let len = reader.read_u64::<LittleEndian>()? as usize;
-        let bits = reader.read_u64::<LittleEndian>()? as usize;
+    pub fn deserialize_from_with_limit<R: io::Read>(
+        mut reader: R,
+        max_bytes: usize,
+    ) -> io::Result<Self> {
+        let chunks_len = Self::read_usize(&mut reader, "chunk count does not fit in usize")?;
+        let chunks_bytes = chunks_len
+            .checked_mul(std::mem::size_of::<u64>())
+            .ok_or_else(|| Self::invalid_data("chunk allocation size overflow"))?;
+        if chunks_bytes > max_bytes {
+            return Err(Self::invalid_data(
+                "chunk allocation exceeds the deserialization limit",
+            ));
+        }
+
+        let mut chunks = Vec::new();
+        for _ in 0..chunks_len {
+            chunks.push(reader.read_u64::<LittleEndian>()?);
+        }
+
+        let len = Self::read_usize(&mut reader, "element count does not fit in usize")?;
+        let bits = Self::read_usize(&mut reader, "bit width does not fit in usize")?;
         let mask = reader.read_u64::<LittleEndian>()?;
-        Ok(Self {
+        let vector = Self {
             chunks,
             len,
             bits,
             mask,
-        })
+        };
+        vector.validate()?;
+        Ok(vector)
+    }
+
+    #[inline(always)]
+    pub fn allocated_bytes(&self) -> usize {
+        self.chunks.len() * std::mem::size_of::<u64>()
+    }
+
+    fn validate(&self) -> io::Result<()> {
+        if self.bits == 0 || self.bits > u64::BITS as usize {
+            return Err(Self::invalid_data("bit width must be in 1..=64"));
+        }
+
+        let expected_mask = if self.bits == u64::BITS as usize {
+            u64::MAX
+        } else {
+            (1_u64 << self.bits) - 1
+        };
+        if self.mask != expected_mask {
+            return Err(Self::invalid_data("mask does not match bit width"));
+        }
+
+        let total_bits = self
+            .len
+            .checked_mul(self.bits)
+            .ok_or_else(|| Self::invalid_data("packed bit length overflow"))?;
+        let expected_chunks = Self::words_for(total_bits);
+        if self.chunks.len() != expected_chunks {
+            return Err(Self::invalid_data(
+                "chunk count does not match length and bit width",
+            ));
+        }
+        Ok(())
+    }
+
+    fn invalid_data(message: &'static str) -> io::Error {
+        io::Error::new(io::ErrorKind::InvalidData, message)
+    }
+
+    fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> io::Result<usize> {
+        usize::try_from(reader.read_u64::<LittleEndian>()?).map_err(|_| Self::invalid_data(error))
     }
 
     #[inline(always)]
