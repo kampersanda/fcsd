@@ -33,7 +33,7 @@ jobs:
       matrix:
         rust:
           - stable
-          - "1.81.0"
+          - "1.86.0"
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust ${{ matrix.rust }}

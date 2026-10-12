@@ -2,7 +2,7 @@
 name = "fcsd"
 version = "0.2.0"
 edition = "2018"
-rust-version = "1.81"
+rust-version = "1.85"
 authors = ["Shunsuke Kanda (kampersanda) <shnsk.knd@gmail.com>"]
 description = "Front-coding string dictionary."
 license = "MIT"
@@ -20,8 +20,8 @@ anyhow = "1.0"
 byteorder = "1.4.3"
 
 [dev-dependencies]
-rand = "0.8.4"
-rand_chacha = "0.3.1"
+rand = "0.10"
+rand_chacha = "0.10"
 
 [workspace]
 members = ["bench"]

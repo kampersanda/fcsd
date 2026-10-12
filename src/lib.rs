@@ -622,15 +622,15 @@ impl Set {
 mod tests {
     use super::*;
     use byteorder::{LittleEndian, WriteBytesExt};
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_chacha::ChaChaRng;
 
     fn gen_random_keys(num: usize, max_len: usize, seed: u64) -> Vec<Vec<u8>> {
         let mut rng = ChaChaRng::seed_from_u64(seed);
         let mut keys = Vec::with_capacity(num);
         for _ in 0..num {
-            let len = (rng.gen::<usize>() % (max_len - 1)) + 1;
-            keys.push((0..len).map(|_| (rng.gen::<u8>() % 4) + 1).collect());
+            let len = rng.random_range(1..max_len);
+            keys.push((0..len).map(|_| rng.random_range(1..=4)).collect());
         }
         keys.sort();
         keys.dedup();
