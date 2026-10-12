@@ -124,6 +124,7 @@ impl Set {
     ///
     /// It will set the bucket size to [`DEFAULT_BUCKET_SIZE`].
     /// If you want to optionally set the parameter, use [`Set::with_bucket_size`] instead.
+    /// An empty iterator creates an empty set.
     ///
     /// # Example
     ///
@@ -148,6 +149,8 @@ impl Set {
     ///
     ///  - `keys`: string keys that are unique and sorted.
     ///  - `bucket_size`: The number of strings in each bucket, which must be a power of two.
+    ///
+    /// An empty iterator creates an empty set.
     ///
     /// # Example
     ///
@@ -583,6 +586,34 @@ mod tests {
             assert_eq!(key.as_bytes(), &dec);
         }
         assert!(iterator.next().is_none());
+    }
+
+    #[test]
+    fn test_empty() {
+        let set = Set::new(Vec::<Vec<u8>>::new()).unwrap();
+
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+        assert_eq!(set.num_buckets(), 0);
+        assert_eq!(set.bucket_size(), DEFAULT_BUCKET_SIZE);
+        assert!(set.locator().run(b"key").is_none());
+        assert!(set.iter().next().is_none());
+        assert!(set.predictive_iter(b"").next().is_none());
+        assert!(set.predictive_iter(b"prefix").next().is_none());
+
+        let mut buffer = Vec::new();
+        set.serialize_into(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), set.size_in_bytes());
+
+        let other = Set::deserialize_from(&buffer[..]).unwrap();
+        assert!(other.is_empty());
+        assert_eq!(other.len(), 0);
+        assert_eq!(other.num_buckets(), 0);
+        assert_eq!(other.bucket_size(), DEFAULT_BUCKET_SIZE);
+        assert!(other.locator().run(b"key").is_none());
+        assert!(other.iter().next().is_none());
+        assert!(other.predictive_iter(b"").next().is_none());
+        assert!(other.predictive_iter(b"prefix").next().is_none());
     }
 
     #[test]

@@ -37,7 +37,7 @@ impl<'a> Locator<'a> {
         P: AsRef<[u8]>,
     {
         let key = key.as_ref();
-        if key.is_empty() {
+        if key.is_empty() || self.set.is_empty() {
             return None;
         }
 
