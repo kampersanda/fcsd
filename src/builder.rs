@@ -1,5 +1,4 @@
-use anyhow::{anyhow, Result};
-
+use crate::errors::{FcsdError, Result};
 use crate::intvec::IntVector;
 use crate::utils;
 use crate::Set;
@@ -26,15 +25,15 @@ impl Builder {
     ///
     /// # Errors
     ///
-    /// [`anyhow::Result`] will be returned when
+    /// An error will be returned when
     ///
     ///  - `bucket_size` is zero, or
     ///  - `bucket_size` is not a power of two.
     pub fn new(bucket_size: usize) -> Result<Self> {
         if bucket_size == 0 {
-            Err(anyhow!("bucket_size must not be zero."))
+            Err(FcsdError::BucketSizeZero)
         } else if !utils::is_power_of_two(bucket_size) {
-            Err(anyhow!("bucket_size must be a power of two."))
+            Err(FcsdError::BucketSizeNotPowerOfTwo)
         } else {
             Ok(Self {
                 pointers: Vec::new(),
@@ -56,21 +55,18 @@ impl Builder {
     ///
     /// # Errors
     ///
-    /// [`anyhow::Result`] will be returned when
+    /// An error will be returned when
     ///
     ///  - `key` is no more than the last one, or
     ///  - `key` contains [`END_MARKER`].
     pub fn add(&mut self, key: &[u8]) -> Result<()> {
         if utils::contains_end_marker(key) {
-            return Err(anyhow!(
-                "The input key must not contain END_MARKER (={}).",
-                END_MARKER
-            ));
+            return Err(FcsdError::KeyContainsEndMarker);
         }
 
         let (lcp, cmp) = utils::get_lcp(&self.last_key, key);
         if cmp <= 0 {
-            return Err(anyhow!("The input key must be more than the last one.",));
+            return Err(FcsdError::KeysNotSortedAndUnique);
         }
 
         if self.len & self.bucket_mask == 0 {

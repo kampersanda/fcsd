@@ -14,6 +14,7 @@
 //!  - Martínez-Prieto et al., [Practical compressed string dictionaries](https://doi.org/10.1016/j.is.2015.08.008), INFOSYS 2016
 pub mod builder;
 pub mod decoder;
+pub mod errors;
 mod intvec;
 pub mod iter;
 pub mod locator;
@@ -24,11 +25,11 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::io::{self, Read};
 
-use anyhow::{anyhow, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use builder::Builder;
 use decoder::Decoder;
+pub use errors::{FcsdError, Result};
 use intvec::IntVector;
 use iter::Iter;
 use locator::Locator;
@@ -280,15 +281,15 @@ impl Set {
     {
         let cookie = reader.read_u32::<LittleEndian>()?;
         if cookie != SERIAL_COOKIE {
-            return Err(anyhow!("unknown cookie value"));
+            return Err(FcsdError::InvalidData("unknown cookie value"));
         }
         let pointers = IntVector::deserialize_from_with_limit(&mut reader, max_bytes)?;
         let remaining_bytes = max_bytes - pointers.allocated_bytes();
         let serialized = {
-            let len = Self::read_usize(&mut reader, "serialized length")?;
+            let len = Self::read_usize(&mut reader, "serialized length does not fit in usize")?;
             if len > remaining_bytes {
-                return Err(anyhow!(
-                    "serialized allocation exceeds the deserialization limit"
+                return Err(FcsdError::InvalidData(
+                    "serialized allocation exceeds the deserialization limit",
                 ));
             }
             let mut serialized = Vec::new();
@@ -302,10 +303,10 @@ impl Set {
             serialized
         };
 
-        let len = Self::read_usize(&mut reader, "key count")?;
-        let bucket_bits = Self::read_usize(&mut reader, "bucket bit width")?;
-        let bucket_mask = Self::read_usize(&mut reader, "bucket mask")?;
-        let max_length = Self::read_usize(&mut reader, "maximum key length")?;
+        let len = Self::read_usize(&mut reader, "key count does not fit in usize")?;
+        let bucket_bits = Self::read_usize(&mut reader, "bucket bit width does not fit in usize")?;
+        let bucket_mask = Self::read_usize(&mut reader, "bucket mask does not fit in usize")?;
+        let max_length = Self::read_usize(&mut reader, "maximum key length does not fit in usize")?;
 
         let set = Self {
             pointers,
@@ -319,21 +320,23 @@ impl Set {
         Ok(set)
     }
 
-    fn read_usize<R: io::Read>(reader: &mut R, field: &str) -> Result<usize> {
+    fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> Result<usize> {
         usize::try_from(reader.read_u64::<LittleEndian>()?)
-            .map_err(|_| anyhow!("{} does not fit in usize", field))
+            .map_err(|_| FcsdError::InvalidData(error))
     }
 
     fn validate_deserialized(&self) -> Result<()> {
         let bucket_size = self
             .bucket_mask
             .checked_add(1)
-            .ok_or_else(|| anyhow!("bucket size overflow"))?;
+            .ok_or(FcsdError::InvalidData("bucket size overflow"))?;
         if !utils::is_power_of_two(bucket_size) {
-            return Err(anyhow!("bucket size must be a power of two"));
+            return Err(FcsdError::InvalidData("bucket size must be a power of two"));
         }
         if self.bucket_bits != self.bucket_mask.count_ones() as usize {
-            return Err(anyhow!("bucket bit width does not match bucket mask"));
+            return Err(FcsdError::InvalidData(
+                "bucket bit width does not match bucket mask",
+            ));
         }
 
         let expected_buckets = if self.len == 0 {
@@ -342,8 +345,8 @@ impl Set {
             1 + (self.len - 1) / bucket_size
         };
         if self.pointers.len() != expected_buckets {
-            return Err(anyhow!(
-                "pointer count does not match key and bucket counts"
+            return Err(FcsdError::InvalidData(
+                "pointer count does not match key and bucket counts",
             ));
         }
 
@@ -355,42 +358,41 @@ impl Set {
             let lcp = if id % bucket_size == 0 {
                 let bucket = id / bucket_size;
                 let pointer = usize::try_from(self.pointers.get(bucket))
-                    .map_err(|_| anyhow!("bucket pointer does not fit in usize"))?;
+                    .map_err(|_| FcsdError::InvalidData("bucket pointer does not fit in usize"))?;
                 if pointer != pos {
-                    return Err(anyhow!(
-                        "bucket pointers must match increasing bucket offsets"
+                    return Err(FcsdError::InvalidData(
+                        "bucket pointers must match increasing bucket offsets",
                     ));
                 }
                 0
             } else {
                 let (lcp, bytes) = utils::vbyte::try_decode(&self.serialized[pos..])
-                    .ok_or_else(|| anyhow!("invalid vbyte value"))?;
+                    .ok_or(FcsdError::InvalidData("invalid vbyte value"))?;
                 pos += bytes;
                 if lcp > previous_key.len() {
-                    return Err(anyhow!(
-                        "front-coded prefix exceeds the previous key length"
+                    return Err(FcsdError::InvalidData(
+                        "front-coded prefix exceeds the previous key length",
                     ));
                 }
                 lcp
             };
 
-            let suffix = self
-                .serialized
-                .get(pos..)
-                .ok_or_else(|| anyhow!("key offset is outside the serialized data"))?;
+            let suffix = self.serialized.get(pos..).ok_or(FcsdError::InvalidData(
+                "key offset is outside the serialized data",
+            ))?;
             let suffix_len = suffix
                 .iter()
                 .position(|&byte| byte == END_MARKER)
-                .ok_or_else(|| anyhow!("key is missing its end marker"))?;
+                .ok_or(FcsdError::InvalidData("key is missing its end marker"))?;
             if suffix_len == 0 {
-                return Err(anyhow!("keys must not be empty"));
+                return Err(FcsdError::InvalidData("keys must not be empty"));
             }
 
             key.clear();
             key.extend_from_slice(&previous_key[..lcp]);
             key.extend_from_slice(&suffix[..suffix_len]);
             if id != 0 && key <= previous_key {
-                return Err(anyhow!("keys must be sorted and unique"));
+                return Err(FcsdError::InvalidData("keys must be sorted and unique"));
             }
 
             pos += suffix_len + 1;
@@ -399,12 +401,14 @@ impl Set {
         }
 
         if pos != self.serialized.len() {
-            return Err(anyhow!(
-                "serialized data contains trailing or unparsed bytes"
+            return Err(FcsdError::InvalidData(
+                "serialized data contains trailing or unparsed bytes",
             ));
         }
         if self.max_length != actual_max_length {
-            return Err(anyhow!("maximum key length does not match serialized keys"));
+            return Err(FcsdError::InvalidData(
+                "maximum key length does not match serialized keys",
+            ));
         }
         Ok(())
     }
@@ -658,6 +662,31 @@ mod tests {
         data.write_u64::<LittleEndian>(bucket_mask as u64).unwrap();
         data.write_u64::<LittleEndian>(max_length as u64).unwrap();
         data
+    }
+
+    #[test]
+    fn test_error_variants() {
+        assert!(matches!(Builder::new(0), Err(FcsdError::BucketSizeZero)));
+        assert!(matches!(
+            Builder::new(3),
+            Err(FcsdError::BucketSizeNotPowerOfTwo)
+        ));
+
+        let mut builder = Builder::new(4).unwrap();
+        assert!(matches!(
+            builder.add(b"a\0b"),
+            Err(FcsdError::KeyContainsEndMarker)
+        ));
+        builder.add(b"a").unwrap();
+        assert!(matches!(
+            builder.add(b"a"),
+            Err(FcsdError::KeysNotSortedAndUnique)
+        ));
+
+        assert!(matches!(
+            Set::deserialize_from([0_u8; 4].as_slice()),
+            Err(FcsdError::InvalidData("unknown cookie value"))
+        ));
     }
 
     #[test]
