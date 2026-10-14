@@ -17,10 +17,6 @@ The data structure is a plain front-coded string dictionary described in [*Mart√
 - **Random access.** Fcsd maintains strings through a bucketization technique enabling to directly decompress arbitrary strings and perform binary search for strings.
 - **`no_std` support.** Disable default features to use Fcsd in an allocator-enabled `no_std` environment. Serialization and deserialization require the default `std` feature.
 
-```toml
-fcsd = { version = "0.2", default-features = false }
-```
-
 ## Example
 
 ```rust
