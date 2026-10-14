@@ -1,5 +1,7 @@
+use alloc::vec::Vec;
+use core::iter::FusedIterator;
+
 use crate::Set;
-use std::iter::FusedIterator;
 
 /// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]

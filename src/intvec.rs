@@ -1,5 +1,9 @@
 use crate::utils;
-use std::convert::TryFrom;
+use alloc::vec;
+use alloc::vec::Vec;
+#[cfg(feature = "std")]
+use core::convert::TryFrom;
+#[cfg(feature = "std")]
 use std::io;
 
 #[derive(Clone)]
@@ -52,10 +56,12 @@ impl IntVector {
         self.len
     }
 
+    #[cfg(feature = "std")]
     pub fn size_in_bytes(&self) -> usize {
         8 + self.chunks.len() * 8 + 8 * 3
     }
 
+    #[cfg(feature = "std")]
     pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
         utils::write_u64_le(&mut writer, self.chunks.len() as u64)?;
         for &x in &self.chunks {
@@ -67,13 +73,14 @@ impl IntVector {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     pub fn deserialize_from_with_limit<R: io::Read>(
         mut reader: R,
         max_bytes: usize,
     ) -> io::Result<Self> {
         let chunks_len = Self::read_usize(&mut reader, "chunk count does not fit in usize")?;
         let chunks_bytes = chunks_len
-            .checked_mul(std::mem::size_of::<u64>())
+            .checked_mul(core::mem::size_of::<u64>())
             .ok_or_else(|| Self::invalid_data("chunk allocation size overflow"))?;
         if chunks_bytes > max_bytes {
             return Err(Self::invalid_data(
@@ -100,10 +107,12 @@ impl IntVector {
     }
 
     #[inline(always)]
+    #[cfg(feature = "std")]
     pub fn allocated_bytes(&self) -> usize {
-        self.chunks.len() * std::mem::size_of::<u64>()
+        self.chunks.len() * core::mem::size_of::<u64>()
     }
 
+    #[cfg(feature = "std")]
     fn validate(&self) -> io::Result<()> {
         if self.bits == 0 || self.bits > u64::BITS as usize {
             return Err(Self::invalid_data("bit width must be in 1..=64"));
@@ -131,10 +140,12 @@ impl IntVector {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn invalid_data(message: &'static str) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidData, message)
     }
 
+    #[cfg(feature = "std")]
     fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> io::Result<usize> {
         usize::try_from(utils::read_u64_le(reader)?).map_err(|_| Self::invalid_data(error))
     }

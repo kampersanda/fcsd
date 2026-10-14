@@ -1,24 +1,29 @@
-use std::cmp::Ordering;
+use core::cmp::Ordering;
+#[cfg(feature = "std")]
 use std::io::{self, Read, Write};
 
 use crate::END_MARKER;
 
+#[cfg(feature = "std")]
 pub fn read_u32_le<R: Read>(mut reader: R) -> io::Result<u32> {
     let mut bytes = [0; size_of::<u32>()];
     reader.read_exact(&mut bytes)?;
     Ok(u32::from_le_bytes(bytes))
 }
 
+#[cfg(feature = "std")]
 pub fn read_u64_le<R: Read>(mut reader: R) -> io::Result<u64> {
     let mut bytes = [0; size_of::<u64>()];
     reader.read_exact(&mut bytes)?;
     Ok(u64::from_le_bytes(bytes))
 }
 
+#[cfg(feature = "std")]
 pub fn write_u32_le<W: Write>(mut writer: W, value: u32) -> io::Result<()> {
     writer.write_all(&value.to_le_bytes())
 }
 
+#[cfg(feature = "std")]
 pub fn write_u64_le<W: Write>(mut writer: W, value: u64) -> io::Result<()> {
     writer.write_all(&value.to_le_bytes())
 }
@@ -28,7 +33,7 @@ pub fn write_u64_le<W: Write>(mut writer: W, value: u64) -> io::Result<()> {
 ///  - cmp: if a < b then positive, elif b < a then negative, else zero.
 #[inline(always)]
 pub fn get_lcp(a: &[u8], b: &[u8]) -> (usize, isize) {
-    let min_len = std::cmp::min(a.len(), b.len());
+    let min_len = core::cmp::min(a.len(), b.len());
     for i in 0..min_len {
         if a[i] != b[i] {
             return (i, b[i] as isize - a[i] as isize);
@@ -86,6 +91,8 @@ pub const fn needed_bits(mut x: u64) -> usize {
 }
 
 pub mod vbyte {
+    use alloc::vec::Vec;
+
     #[inline(always)]
     pub fn append(bytes: &mut Vec<u8>, mut val: usize) {
         while 127 < val {

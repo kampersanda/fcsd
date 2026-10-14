@@ -1,4 +1,5 @@
-use std::cmp::Ordering;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 
 use crate::utils;
 use crate::Set;

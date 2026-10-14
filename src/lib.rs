@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 //! # Fast and compact indexed string set using front coding
 //!
 //! This crate provides an indexed set of strings in a compressed format based on front coding.
@@ -12,6 +13,12 @@
 //! ## References
 //!
 //!  - Martínez-Prieto et al., [Practical compressed string dictionaries](https://doi.org/10.1016/j.is.2015.08.008), INFOSYS 2016
+
+extern crate alloc;
+
+#[cfg(test)]
+extern crate std;
+
 pub mod builder;
 pub mod decoder;
 pub mod errors;
@@ -21,8 +28,11 @@ pub mod locator;
 pub mod predictive_iter;
 mod utils;
 
-use std::cmp::Ordering;
-use std::convert::TryFrom;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+#[cfg(feature = "std")]
+use core::convert::TryFrom;
+#[cfg(feature = "std")]
 use std::io::{self, Read};
 
 use builder::Builder;
@@ -40,6 +50,7 @@ pub const END_MARKER: u8 = 0;
 pub const DEFAULT_BUCKET_SIZE: usize = 8;
 
 /// Serial cookie value for serialization.
+#[cfg(feature = "std")]
 const SERIAL_COOKIE: u32 = 114514;
 
 /// Fast and compact indexed string set using front coding.
@@ -184,6 +195,7 @@ impl Set {
     /// let set = Set::new(keys).unwrap();
     /// assert_eq!(set.size_in_bytes(), 110);
     /// ```
+    #[cfg(feature = "std")]
     pub fn size_in_bytes(&self) -> usize {
         let mut bytes = 0;
         bytes += 4; // SERIAL_COOKIE
@@ -210,6 +222,7 @@ impl Set {
     /// set.serialize_into(&mut data).unwrap();
     /// assert_eq!(data.len(), 110);
     /// ```
+    #[cfg(feature = "std")]
     pub fn serialize_into<W>(&self, mut writer: W) -> Result<()>
     where
         W: io::Write,
@@ -249,6 +262,7 @@ impl Set {
     /// let other = Set::deserialize_from(&data[..]).unwrap();
     /// assert_eq!(set.size_in_bytes(), other.size_in_bytes());
     /// ```
+    #[cfg(feature = "std")]
     pub fn deserialize_from<R>(reader: R) -> Result<Self>
     where
         R: io::Read,
@@ -271,6 +285,7 @@ impl Set {
     ///
     /// Returns an error if the input is truncated, exceeds `max_bytes`, or
     /// contains inconsistent metadata or front-coded keys.
+    #[cfg(feature = "std")]
     pub fn deserialize_from_with_limit<R>(mut reader: R, max_bytes: usize) -> Result<Self>
     where
         R: io::Read,
@@ -316,10 +331,12 @@ impl Set {
         Ok(set)
     }
 
+    #[cfg(feature = "std")]
     fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> Result<usize> {
         usize::try_from(utils::read_u64_le(reader)?).map_err(|_| FcsdError::InvalidData(error))
     }
 
+    #[cfg(feature = "std")]
     fn validate_deserialized(&self) -> Result<()> {
         let bucket_size = self
             .bucket_mask
@@ -392,7 +409,7 @@ impl Set {
 
             pos += suffix_len + 1;
             actual_max_length = actual_max_length.max(key.len());
-            std::mem::swap(&mut previous_key, &mut key);
+            core::mem::swap(&mut previous_key, &mut key);
         }
 
         if pos != self.serialized.len() {

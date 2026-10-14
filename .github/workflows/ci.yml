@@ -24,6 +24,8 @@ jobs:
         run: cargo +stable fmt --all -- --check
       - name: Run Clippy
         run: cargo +stable clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Check no_std build
+        run: cargo +stable check --lib --no-default-features
 
   test:
     name: Test on Rust ${{ matrix.rust }}

@@ -1,5 +1,6 @@
-use std::error::Error;
-use std::fmt;
+use core::error::Error;
+use core::fmt;
+#[cfg(feature = "std")]
 use std::io;
 
 /// Errors returned by this crate.
@@ -16,6 +17,7 @@ pub enum FcsdError {
     /// Serialized data is invalid.
     InvalidData(&'static str),
     /// An I/O operation failed.
+    #[cfg(feature = "std")]
     Io(io::Error),
 }
 
@@ -35,6 +37,7 @@ impl fmt::Display for FcsdError {
                 write!(f, "input keys must be sorted and unique")
             }
             Self::InvalidData(message) => f.write_str(message),
+            #[cfg(feature = "std")]
             Self::Io(error) => error.fmt(f),
         }
     }
@@ -43,17 +46,19 @@ impl fmt::Display for FcsdError {
 impl Error for FcsdError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(error) => Some(error),
             _ => None,
         }
     }
 }
 
+#[cfg(feature = "std")]
 impl From<io::Error> for FcsdError {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
     }
 }
 
-/// A specialized [`Result`](std::result::Result) for this crate.
-pub type Result<T> = std::result::Result<T, FcsdError>;
+/// A specialized [`Result`](core::result::Result) for this crate.
+pub type Result<T> = core::result::Result<T, FcsdError>;

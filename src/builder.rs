@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::errors::{FcsdError, Result};
 use crate::intvec::IntVector;
 use crate::utils;
@@ -81,7 +83,7 @@ impl Builder {
         self.last_key.resize(key.len(), 0);
         self.last_key.copy_from_slice(key);
         self.len += 1;
-        self.max_length = std::cmp::max(self.max_length, key.len());
+        self.max_length = core::cmp::max(self.max_length, key.len());
 
         Ok(())
     }
