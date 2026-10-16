@@ -49,9 +49,15 @@ pub const END_MARKER: u8 = 0;
 /// Default parameter for the number of keys in each bucket.
 pub const DEFAULT_BUCKET_SIZE: usize = 8;
 
-/// Serial cookie value for serialization.
+/// Magic bytes at the beginning of serialized data.
 #[cfg(feature = "std")]
-const SERIAL_COOKIE: u32 = 114514;
+const MAGIC: [u8; 4] = *b"FCSD";
+
+/// Version of the serialization format.
+///
+/// This is independent of the crate version and is incremented only when the
+/// serialized layout changes.
+pub const FORMAT_VERSION: u32 = 1;
 
 /// Fast and compact indexed string set using front coding.
 ///
@@ -193,12 +199,13 @@ impl Set {
     ///
     /// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
     /// let set = Set::new(keys).unwrap();
-    /// assert_eq!(set.size_in_bytes(), 110);
+    /// assert_eq!(set.size_in_bytes(), 114);
     /// ```
     #[cfg(feature = "std")]
     pub fn size_in_bytes(&self) -> usize {
         let mut bytes = 0;
-        bytes += 4; // SERIAL_COOKIE
+        bytes += MAGIC.len(); // MAGIC
+        bytes += 4; // FORMAT_VERSION
         bytes += self.pointers.size_in_bytes(); // pointers
         bytes += 8 + self.serialized.len(); // serialized
         bytes + 8 * 4
@@ -220,14 +227,15 @@ impl Set {
     ///
     /// let mut data = Vec::<u8>::new();
     /// set.serialize_into(&mut data).unwrap();
-    /// assert_eq!(data.len(), 110);
+    /// assert_eq!(data.len(), 114);
     /// ```
     #[cfg(feature = "std")]
     pub fn serialize_into<W>(&self, mut writer: W) -> Result<()>
     where
         W: io::Write,
     {
-        utils::write_u32_le(&mut writer, SERIAL_COOKIE)?;
+        writer.write_all(&MAGIC)?;
+        utils::write_u32_le(&mut writer, FORMAT_VERSION)?;
         self.pointers.serialize_into(&mut writer)?;
         utils::write_u64_le(&mut writer, self.serialized.len() as u64)?;
         writer.write_all(&self.serialized)?;
@@ -246,8 +254,9 @@ impl Set {
     ///
     /// # Errors
     ///
-    /// Returns an error if the input is truncated or contains inconsistent
-    /// metadata or front-coded keys.
+    /// Returns an error if the input is truncated, was written in an
+    /// unsupported format version, or contains inconsistent metadata or
+    /// front-coded keys.
     ///
     /// # Example
     ///
@@ -283,16 +292,22 @@ impl Set {
     ///
     /// # Errors
     ///
-    /// Returns an error if the input is truncated, exceeds `max_bytes`, or
-    /// contains inconsistent metadata or front-coded keys.
+    /// Returns an error if the input is truncated, was written in an
+    /// unsupported format version, exceeds `max_bytes`, or contains
+    /// inconsistent metadata or front-coded keys.
     #[cfg(feature = "std")]
     pub fn deserialize_from_with_limit<R>(mut reader: R, max_bytes: usize) -> Result<Self>
     where
         R: io::Read,
     {
-        let cookie = utils::read_u32_le(&mut reader)?;
-        if cookie != SERIAL_COOKIE {
-            return Err(FcsdError::InvalidData("unknown cookie value"));
+        let mut magic = [0; 4];
+        reader.read_exact(&mut magic)?;
+        if magic != MAGIC {
+            return Err(FcsdError::InvalidData("unknown magic bytes"));
+        }
+        let version = utils::read_u32_le(&mut reader)?;
+        if version != FORMAT_VERSION {
+            return Err(FcsdError::UnsupportedFormatVersion(version));
         }
         let pointers = IntVector::deserialize_from_with_limit(&mut reader, max_bytes)?;
         let remaining_bytes = max_bytes - pointers.allocated_bytes();

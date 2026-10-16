@@ -1,6 +1,10 @@
 use fcsd::{FcsdError, Result, Set};
 
-const SERIAL_COOKIE: u32 = 114_514;
+fn header() -> Vec<u8> {
+    let mut data = b"FCSD".to_vec();
+    data.extend_from_slice(&fcsd::FORMAT_VERSION.to_le_bytes());
+    data
+}
 
 fn push_u64(data: &mut Vec<u8>, value: u64) {
     data.extend_from_slice(&value.to_le_bytes());
@@ -19,7 +23,7 @@ struct RawSet<'a> {
 }
 
 fn raw_set(raw: RawSet<'_>) -> Vec<u8> {
-    let mut data = SERIAL_COOKIE.to_le_bytes().to_vec();
+    let mut data = header();
     push_u64(&mut data, raw.pointer_chunks.len() as u64);
     for &chunk in raw.pointer_chunks {
         push_u64(&mut data, chunk);
@@ -109,15 +113,38 @@ fn empty_set_survives_serialization_round_trip() {
 }
 
 #[test]
-fn deserialization_rejects_unknown_cookie() {
-    let data = [0_u8; 4];
+fn serialized_data_starts_with_magic_and_format_version() {
+    let set = Set::new(["alpha"]).unwrap();
+    let mut data = Vec::new();
+
+    set.serialize_into(&mut data).unwrap();
+
+    assert_eq!(data[..8], header()[..]);
+}
+
+#[test]
+fn deserialization_rejects_unknown_magic() {
+    let data = [0_u8; 8];
 
     assert_invalid_data(Set::deserialize_from(data.as_slice()));
 }
 
 #[test]
+fn deserialization_rejects_unsupported_format_version() {
+    let mut data = b"FCSD".to_vec();
+    data.extend_from_slice(&(fcsd::FORMAT_VERSION + 1).to_le_bytes());
+
+    let result = Set::deserialize_from(data.as_slice());
+
+    assert!(matches!(
+        result,
+        Err(FcsdError::UnsupportedFormatVersion(v)) if v == fcsd::FORMAT_VERSION + 1
+    ));
+}
+
+#[test]
 fn deserialization_rejects_a_declared_allocation_above_the_limit() {
-    let mut data = SERIAL_COOKIE.to_le_bytes().to_vec();
+    let mut data = header();
     push_u64(&mut data, 32 * 1024 * 1024);
 
     let result = Set::deserialize_from_with_limit(data.as_slice(), 1024);
