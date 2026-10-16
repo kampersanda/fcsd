@@ -16,6 +16,8 @@ pub enum FcsdError {
     KeysNotSortedAndUnique,
     /// Serialized data is invalid.
     InvalidData(&'static str),
+    /// Serialized data was written in an unsupported format version.
+    UnsupportedFormatVersion(u32),
     /// An I/O operation failed.
     #[cfg(feature = "std")]
     Io(io::Error),
@@ -37,6 +39,12 @@ impl fmt::Display for FcsdError {
                 write!(f, "input keys must be sorted and unique")
             }
             Self::InvalidData(message) => f.write_str(message),
+            Self::UnsupportedFormatVersion(version) => write!(
+                f,
+                "unsupported format version {} (expected {})",
+                version,
+                crate::FORMAT_VERSION
+            ),
             #[cfg(feature = "std")]
             Self::Io(error) => error.fmt(f),
         }
