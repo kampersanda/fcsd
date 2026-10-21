@@ -38,15 +38,13 @@ fn criterion_locate(c: &mut Criterion) {
 fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
     for &bs in &BUCKET_SIZES {
         group.bench_function(format!("fcsd<{}>", bs), |b| {
-            b.iter(|| {
-                fcsd::Set::with_bucket_size(keys, bs).unwrap();
-            });
+            b.iter(|| fcsd::Set::with_bucket_size(keys, bs).unwrap());
         });
     }
 
     group.bench_function("fst", |b| {
         b.iter(|| {
-            fst::Map::from_iter(keys.iter().enumerate().map(|(i, k)| (k, i as u64))).unwrap();
+            fst::Map::from_iter(keys.iter().enumerate().map(|(i, k)| (k, i as u64))).unwrap()
         });
     });
 }
