@@ -43,6 +43,7 @@ fn load_keyset<P>(path: P) -> Vec<String>
 where
     P: AsRef<Path>,
 {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
     let file = File::open(path).unwrap();
     let buf = BufReader::new(file);
     let mut keys: Vec<_> = buf.lines().map(|line| line.unwrap()).collect();
