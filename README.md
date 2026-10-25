@@ -71,21 +71,12 @@ assert_eq!(view.locator().run(b"SIGKDD"), Some(3));
 
 ### Memory-mapped files
 
-`Set::from_bytes` accepts any `S: AsRef<[u8]>`, so a memory map can be passed as is (here with the [`memmap2`](https://crates.io/crates/memmap2) crate). Here, `path` points to a serialized set:
+`Set::from_bytes` accepts any `S: AsRef<[u8]>`, so a memory map can be passed as is (here with the [`memmap2`](https://crates.io/crates/memmap2) crate). Here, `keys.fcsd` contains a previously serialized set:
 
-```rust
-# fn main() -> Result<(), Box<dyn std::error::Error>> {
-# let dir = tempfile::tempdir()?;
-# let path = dir.path().join("keys.fcsd");
-# let original = fcsd::Set::new(["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"])?;
-# original.serialize_into(std::fs::File::create(&path)?)?;
-let file = std::fs::File::open(path)?;
-let mmap = unsafe { memmap2::Mmap::map(&file)? };
-let set = fcsd::Set::from_bytes(mmap)?;
-# assert_eq!(set.len(), original.len());
-# assert_eq!(set.locator().run(b"SIGKDD"), Some(3));
-# Ok(())
-# }
+```rust,no_run
+let file = std::fs::File::open("keys.fcsd").unwrap();
+let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
+let set = fcsd::Set::from_bytes(mmap).unwrap();
 ```
 
 `Set::from_bytes` validates every key, which reads the whole file. For trusted data, `Set::from_bytes_trusted` checks only the header and metadata, so pages are loaded lazily as queries touch them.

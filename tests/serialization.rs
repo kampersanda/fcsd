@@ -452,3 +452,24 @@ fn deserialization_rejects_a_maximal_key_length_without_overflow() {
 
     assert!(Set::deserialize_from(data.as_slice()).is_err());
 }
+
+#[test]
+fn from_bytes_queries_a_memory_mapped_file() {
+    let original = Set::new(["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"]).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("keys.fcsd");
+    original
+        .serialize_into(std::fs::File::create(&path).unwrap())
+        .unwrap();
+
+    let file = std::fs::File::open(path).unwrap();
+    // The file is private to this test and is not modified while mapped.
+    let mmap = unsafe { memmap2::Mmap::map(&file).unwrap() };
+    let set = Set::from_bytes(mmap).unwrap();
+
+    assert_eq!(set.locator().run(b"SIGKDD"), Some(3));
+    assert_eq!(
+        set.iter().collect::<Vec<_>>(),
+        original.iter().collect::<Vec<_>>()
+    );
+}
