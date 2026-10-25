@@ -1,53 +1,40 @@
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
-
-const BUCKET_SIZES: [usize; 4] = [4, 8, 16, 32];
+use fcsd_bench::{build_fst, load_keyset, yada_keyset, BUCKET_SIZES, DATASETS};
+use yada::builder::DoubleArrayBuilder;
 
 fn main() {
-    memory("data/words-100000");
-    memory("data/wiki-urls-100000");
-}
-
-fn memory(filename: &str) {
-    println!("== {} ==", filename);
-    let keys = load_keyset(filename);
-
-    // +1 is for the terminator.
-    let orig_size = keys.iter().fold(0, |acc, k| acc + k.len() + 1);
-
-    // Fcsd
-    for &bs in &BUCKET_SIZES {
-        let dict = fcsd::Set::with_bucket_size(&keys, bs).unwrap();
-        print(&format!("fcsd<{}>", bs), dict.size_in_bytes(), orig_size);
-    }
-
-    // Fst
-    {
-        let map = fst::Map::from_iter(keys.iter().enumerate().map(|(i, k)| (k, i as u64))).unwrap();
-        print("fst", map.as_fst().as_bytes().len(), orig_size);
-    }
-}
-
-fn print(title: &str, dict: usize, orig: usize) {
     println!(
-        "{}: {} bytes, {:.3} MiB, ComprRatio={:.3}",
-        title,
-        dict,
-        dict as f64 / (1024. * 1024.),
-        dict as f64 / orig as f64
-    )
+        "dataset,implementation,keys,raw_bytes,dictionary_bytes,bytes_per_key,compression_ratio"
+    );
+    for dataset in DATASETS {
+        let keys = load_keyset(dataset);
+        // Newline-delimited UTF-8, one terminator byte per unique key.
+        let raw_bytes: usize = keys.iter().map(|k| k.len() + 1).sum();
+        for bs in BUCKET_SIZES {
+            let dict = fcsd::Set::with_bucket_size(&keys, bs).unwrap();
+            print(
+                dataset,
+                &format!("fcsd-{bs}"),
+                keys.len(),
+                raw_bytes,
+                dict.size_in_bytes(),
+            );
+        }
+        print(
+            dataset,
+            "fst",
+            keys.len(),
+            raw_bytes,
+            build_fst(&keys).as_fst().as_bytes().len(),
+        );
+        let bytes = DoubleArrayBuilder::build(&yada_keyset(&keys)).unwrap();
+        print(dataset, "yada", keys.len(), raw_bytes, bytes.len());
+    }
 }
 
-fn load_keyset<P>(path: P) -> Vec<String>
-where
-    P: AsRef<Path>,
-{
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
-    let file = File::open(path).unwrap();
-    let buf = BufReader::new(file);
-    let mut keys: Vec<_> = buf.lines().map(|line| line.unwrap()).collect();
-    keys.sort_unstable();
-    keys.dedup();
-    keys
+fn print(dataset: &str, implementation: &str, keys: usize, raw: usize, bytes: usize) {
+    println!(
+        "{dataset},{implementation},{keys},{raw},{bytes},{:.3},{:.6}",
+        bytes as f64 / keys as f64,
+        bytes as f64 / raw as f64
+    );
 }
