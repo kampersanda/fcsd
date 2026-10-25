@@ -432,3 +432,23 @@ fn from_bytes_trusted_skips_key_validation_but_checks_metadata() {
     assert!(Set::from_bytes_trusted(unsorted).is_ok());
     assert_invalid_data(Set::from_bytes_trusted(bad_bucket));
 }
+
+#[test]
+fn deserialization_rejects_a_maximal_chunk_count_without_overflow() {
+    let mut data = header();
+    push_u64(&mut data, (usize::MAX / 8) as u64);
+
+    assert!(Set::deserialize_from(data.as_slice()).is_err());
+}
+
+#[test]
+fn deserialization_rejects_a_maximal_key_length_without_overflow() {
+    let mut data = header();
+    push_u64(&mut data, 0);
+    push_u64(&mut data, 0);
+    push_u64(&mut data, 1);
+    push_u64(&mut data, 1);
+    push_u64(&mut data, usize::MAX as u64);
+
+    assert!(Set::deserialize_from(data.as_slice()).is_err());
+}

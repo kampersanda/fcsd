@@ -280,7 +280,8 @@ impl Set {
                 "chunk allocation exceeds the deserialization limit",
             ));
         }
-        read_into(&mut reader, pointers_bytes + 8 * 3, &mut data)?;
+        read_into(&mut reader, pointers_bytes, &mut data)?;
+        read_into(&mut reader, 8 * 3, &mut data)?;
 
         let keys_bytes = read_usize_into(&mut reader, &mut data)?;
         if keys_bytes > max_bytes - pointers_bytes {
@@ -288,7 +289,8 @@ impl Set {
                 "serialized allocation exceeds the deserialization limit",
             ));
         }
-        read_into(&mut reader, keys_bytes + 8 * 4, &mut data)?;
+        read_into(&mut reader, keys_bytes, &mut data)?;
+        read_into(&mut reader, 8 * 4, &mut data)?;
 
         Self::from_bytes(data)
     }
