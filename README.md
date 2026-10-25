@@ -81,9 +81,13 @@ let set = fcsd::Set::from_bytes(mmap).unwrap();
 
 `Set::from_bytes` validates every key, which reads the whole file. For trusted data, `Set::from_bytes_trusted` checks only the header and metadata, so pages are loaded lazily as queries touch them.
 
+## Benchmarks
+
+See [the benchmark suite](bench/README.md) and [measured results](bench/RESULTS.md)
+for comparisons with fst and yada on words and Wikipedia URLs.
+
 ## Todo
 
-- Add benchmarking codes.
 - Add RePair compressed veriants.
 
 ## Licensing

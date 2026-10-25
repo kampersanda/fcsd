@@ -9,6 +9,7 @@ rust-version = "1.86"
 [dependencies]
 fcsd =  { path = ".." }
 fst = "0.4"
+yada = "0.7"
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
