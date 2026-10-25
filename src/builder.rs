@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 
 use crate::errors::{FcsdError, Result};
-use crate::intvec::IntVector;
 use crate::utils;
 use crate::Set;
 use crate::END_MARKER;
@@ -90,13 +89,16 @@ impl Builder {
 
     /// Builds and returns the dictionary.
     pub fn finish(self) -> Set {
-        Set {
-            pointers: IntVector::build(&self.pointers),
-            serialized: self.serialized,
-            len: self.len,
-            bucket_bits: self.bucket_bits,
-            bucket_mask: self.bucket_mask,
-            max_length: self.max_length,
-        }
+        let mut data = Vec::with_capacity(self.serialized.len() + 8 * self.pointers.len() + 64);
+        crate::write_set(
+            &mut data,
+            &self.pointers,
+            &self.serialized,
+            self.len,
+            self.bucket_bits,
+            self.bucket_mask,
+            self.max_length,
+        );
+        Set::from_bytes_trusted(data).expect("builder must produce valid data")
     }
 }

@@ -1,12 +1,12 @@
 use alloc::vec::Vec;
 
 use crate::utils;
-use crate::Set;
+use crate::{Set, SetRef};
 
 /// Iterator to enumerate keys starting from a given string.
 #[derive(Clone)]
 pub struct PredictiveIter<'a> {
-    set: &'a Set,
+    set: SetRef<'a>,
     dec: Vec<u8>,
     key: Vec<u8>,
     pos: usize,
@@ -20,10 +20,12 @@ impl<'a> PredictiveIter<'a> {
     ///
     ///  - `set`: Front-coding dictionay.
     ///  - `key`: Prefix key.
-    pub fn new<P>(set: &'a Set, key: P) -> Self
+    pub fn new<P, S>(set: &'a Set<S>, key: P) -> Self
     where
         P: AsRef<[u8]>,
+        S: AsRef<[u8]>,
     {
+        let set = set.view();
         Self {
             key: key.as_ref().to_vec(),
             set,
@@ -66,7 +68,7 @@ impl<'a> PredictiveIter<'a> {
         }
 
         for bj in 1..set.bucket_size() {
-            if self.pos == set.serialized.len() {
+            if self.pos == set.keys.len() {
                 break;
             }
 
@@ -89,14 +91,14 @@ impl<'a> Iterator for PredictiveIter<'a> {
     type Item = (usize, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.set.serialized.len() {
+        if self.pos == self.set.keys.len() {
             return None;
         }
 
         if self.dec.is_empty() {
             if !self.search_first() {
                 self.dec.clear();
-                self.pos = self.set.serialized.len();
+                self.pos = self.set.keys.len();
                 self.id = 0;
                 return None;
             }
@@ -116,7 +118,7 @@ impl<'a> Iterator for PredictiveIter<'a> {
             Some((self.id, self.dec.clone()))
         } else {
             self.dec.clear();
-            self.pos = self.set.serialized.len();
+            self.pos = self.set.keys.len();
             self.id = 0;
             None
         }

@@ -147,9 +147,7 @@ fn deserialization_rejects_a_declared_allocation_above_the_limit() {
     let mut data = header();
     push_u64(&mut data, 32 * 1024 * 1024);
 
-    let result = Set::deserialize_from_with_limit(data.as_slice(), 1024);
-
-    assert!(matches!(result, Err(FcsdError::Io(_))));
+    assert_invalid_data(Set::deserialize_from_with_limit(data.as_slice(), 1024));
 }
 
 #[test]
@@ -192,9 +190,7 @@ fn deserialization_rejects_pointer_bit_width_of_zero() {
         max_key_length: 1,
     });
 
-    let result = Set::deserialize_from(data.as_slice());
-
-    assert!(matches!(result, Err(FcsdError::Io(_))));
+    assert_invalid_data(Set::deserialize_from(data.as_slice()));
 }
 
 #[test]
@@ -211,9 +207,7 @@ fn deserialization_rejects_too_few_pointer_chunks() {
         max_key_length: 1,
     });
 
-    let result = Set::deserialize_from(data.as_slice());
-
-    assert!(matches!(result, Err(FcsdError::Io(_))));
+    assert_invalid_data(Set::deserialize_from(data.as_slice()));
 }
 
 #[test]
@@ -372,4 +366,89 @@ fn deserialization_rejects_a_truncated_metadata_footer() {
     let result = Set::deserialize_from(&data[..data.len() - 1]);
 
     assert!(matches!(result, Err(FcsdError::Io(_))));
+}
+
+#[test]
+fn from_bytes_queries_serialized_data_in_place() {
+    let set = Set::with_bucket_size(["alpha", "alpine", "beta", "gamma"], 2).unwrap();
+    let mut data = Vec::new();
+    set.serialize_into(&mut data).unwrap();
+
+    let view = Set::from_bytes(data.as_slice()).unwrap();
+
+    assert_eq!(view.as_bytes().as_ptr(), data.as_ptr());
+    assert_eq!(view.size_in_bytes(), data.len());
+    assert_eq!(view.locator().run("beta"), Some(2));
+    assert_eq!(view.decoder().run(3), b"gamma".to_vec());
+    assert_eq!(
+        view.predictive_iter("al").collect::<Vec<_>>(),
+        vec![(0, b"alpha".to_vec()), (1, b"alpine".to_vec())]
+    );
+}
+
+#[test]
+fn from_bytes_accepts_unaligned_data() {
+    let set = Set::new(["alpha", "alpine", "beta"]).unwrap();
+    let mut buffer = vec![0];
+    set.serialize_into(&mut buffer).unwrap();
+
+    let view = Set::from_bytes(&buffer[1..]).unwrap();
+
+    assert_eq!(
+        view.iter().collect::<Vec<_>>(),
+        set.iter().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn from_bytes_rejects_trailing_bytes() {
+    let set = Set::new(["alpha"]).unwrap();
+    let mut data = set.as_bytes().to_vec();
+    data.push(0);
+
+    assert_invalid_data(Set::from_bytes(data));
+}
+
+#[test]
+fn from_bytes_rejects_truncated_data() {
+    let set = Set::new(["alpha", "alpine", "beta"]).unwrap();
+    let data = set.as_bytes();
+
+    assert_invalid_data(Set::from_bytes(data[..data.len() - 1].to_vec()));
+}
+
+#[test]
+fn from_bytes_rejects_invalid_keys() {
+    let data = one_bucket_set(b"b\0\x00a\0", 2, 3, 7, 1);
+
+    assert_invalid_data(Set::from_bytes(data));
+}
+
+#[test]
+fn from_bytes_trusted_skips_key_validation_but_checks_metadata() {
+    let unsorted = one_bucket_set(b"b\0\x00a\0", 2, 3, 7, 1);
+    let bad_bucket = one_bucket_set(b"a\0", 1, 2, 7, 1);
+
+    assert!(Set::from_bytes_trusted(unsorted).is_ok());
+    assert_invalid_data(Set::from_bytes_trusted(bad_bucket));
+}
+
+#[test]
+fn deserialization_rejects_a_maximal_chunk_count_without_overflow() {
+    let mut data = header();
+    push_u64(&mut data, (usize::MAX / 8) as u64);
+
+    assert!(Set::deserialize_from(data.as_slice()).is_err());
+}
+
+#[test]
+fn deserialization_rejects_a_maximal_key_length_without_overflow() {
+    let mut data = header();
+    push_u64(&mut data, 0);
+    push_u64(&mut data, 0);
+    push_u64(&mut data, 1);
+    push_u64(&mut data, 1);
+    push_u64(&mut data, usize::MAX as u64);
+
+    assert!(Set::deserialize_from(data.as_slice()).is_err());
 }

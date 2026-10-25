@@ -1,12 +1,12 @@
 use alloc::vec::Vec;
 use core::iter::FusedIterator;
 
-use crate::Set;
+use crate::{Set, SetRef};
 
 /// Iterator to enumerate keys stored in the dictionary.
 #[derive(Clone)]
 pub struct Iter<'a> {
-    set: &'a Set,
+    set: SetRef<'a>,
     dec: Vec<u8>,
     pos: usize,
     id: usize,
@@ -18,7 +18,11 @@ impl<'a> Iter<'a> {
     /// # Arguments
     ///
     ///  - `set`: Front-coding dictionay.
-    pub fn new(set: &'a Set) -> Self {
+    pub fn new<S>(set: &'a Set<S>) -> Self
+    where
+        S: AsRef<[u8]>,
+    {
+        let set = set.view();
         Self {
             set,
             dec: Vec::with_capacity(set.max_length()),
@@ -32,7 +36,7 @@ impl<'a> Iterator for Iter<'a> {
     type Item = (usize, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.set.serialized.len() {
+        if self.pos == self.set.keys.len() {
             return None;
         }
         if self.set.pos_in_bucket(self.id) == 0 {

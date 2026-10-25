@@ -1,26 +1,30 @@
-use crate::utils;
+use crate::errors::{FcsdError, Result};
+use crate::utils::{self, ByteReader};
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(feature = "std")]
-use core::convert::TryFrom;
-#[cfg(feature = "std")]
-use std::io;
+use core::convert::TryInto;
 
-#[derive(Clone)]
+/// Bit-packed integer vector whose words are stored as little-endian `u64`s
+/// inside a serialized byte buffer.
+///
+/// The vector only keeps the position of its words, so every access takes the
+/// buffer it was read from.
+#[derive(Clone, Copy)]
 pub struct IntVector {
-    chunks: Vec<u64>,
+    offset: usize,
     len: usize,
     bits: usize,
     mask: u64,
 }
 
 impl IntVector {
-    pub fn build(input: &[u64]) -> Self {
+    /// Packs `input` and appends its serialized form to `out`.
+    pub fn write(input: &[u64], out: &mut Vec<u8>) {
         let len = input.len();
         let bits = utils::needed_bits(input.iter().copied().max().unwrap_or(0));
         let mask = (1 << bits) - 1;
 
-        let mut chunks = vec![0; Self::words_for(len * bits)];
+        let mut chunks = vec![0_u64; Self::words_for(len * bits)];
 
         for (i, &x) in input.iter().enumerate() {
             let (q, m) = Self::decompose(i * bits);
@@ -33,21 +37,49 @@ impl IntVector {
             }
         }
 
-        Self {
-            chunks,
+        out.extend_from_slice(&(chunks.len() as u64).to_le_bytes());
+        for x in chunks {
+            out.extend_from_slice(&x.to_le_bytes());
+        }
+        out.extend_from_slice(&(len as u64).to_le_bytes());
+        out.extend_from_slice(&(bits as u64).to_le_bytes());
+        out.extend_from_slice(&mask.to_le_bytes());
+    }
+
+    /// Reads a serialized vector at the current position of `reader`.
+    pub fn read(reader: &mut ByteReader<'_>) -> Result<Self> {
+        let num_words = reader.read_usize("chunk count does not fit in usize")?;
+        let offset = reader.pos();
+        let num_bytes = num_words
+            .checked_mul(core::mem::size_of::<u64>())
+            .ok_or(FcsdError::InvalidData("chunk size overflow"))?;
+        reader.take(num_bytes)?;
+
+        let len = reader.read_usize("element count does not fit in usize")?;
+        let bits = reader.read_usize("bit width does not fit in usize")?;
+        let mask = reader.read_u64()?;
+        let vector = Self {
+            offset,
             len,
             bits,
             mask,
-        }
+        };
+        vector.validate(num_words)?;
+        Ok(vector)
     }
 
+    /// Gets the `i`-th integer from `data`, the buffer this vector was read from.
     #[inline(always)]
-    pub fn get(&self, i: usize) -> u64 {
+    pub fn get(&self, data: &[u8], i: usize) -> u64 {
+        let word = |q: usize| {
+            let start = self.offset + q * 8;
+            u64::from_le_bytes(data[start..start + 8].try_into().unwrap())
+        };
         let (q, m) = Self::decompose(i * self.bits);
         if m + self.bits <= 64 {
-            (self.chunks[q] >> m) & self.mask
+            (word(q) >> m) & self.mask
         } else {
-            ((self.chunks[q] >> m) | (self.chunks[q + 1] << (64 - m))) & self.mask
+            ((word(q) >> m) | (word(q + 1) << (64 - m))) & self.mask
         }
     }
 
@@ -56,66 +88,9 @@ impl IntVector {
         self.len
     }
 
-    #[cfg(feature = "std")]
-    pub fn size_in_bytes(&self) -> usize {
-        8 + self.chunks.len() * 8 + 8 * 3
-    }
-
-    #[cfg(feature = "std")]
-    pub fn serialize_into<W: io::Write>(&self, mut writer: W) -> io::Result<()> {
-        utils::write_u64_le(&mut writer, self.chunks.len() as u64)?;
-        for &x in &self.chunks {
-            utils::write_u64_le(&mut writer, x)?;
-        }
-        utils::write_u64_le(&mut writer, self.len as u64)?;
-        utils::write_u64_le(&mut writer, self.bits as u64)?;
-        utils::write_u64_le(&mut writer, self.mask)?;
-        Ok(())
-    }
-
-    #[cfg(feature = "std")]
-    pub fn deserialize_from_with_limit<R: io::Read>(
-        mut reader: R,
-        max_bytes: usize,
-    ) -> io::Result<Self> {
-        let chunks_len = Self::read_usize(&mut reader, "chunk count does not fit in usize")?;
-        let chunks_bytes = chunks_len
-            .checked_mul(core::mem::size_of::<u64>())
-            .ok_or_else(|| Self::invalid_data("chunk allocation size overflow"))?;
-        if chunks_bytes > max_bytes {
-            return Err(Self::invalid_data(
-                "chunk allocation exceeds the deserialization limit",
-            ));
-        }
-
-        let mut chunks = Vec::new();
-        for _ in 0..chunks_len {
-            chunks.push(utils::read_u64_le(&mut reader)?);
-        }
-
-        let len = Self::read_usize(&mut reader, "element count does not fit in usize")?;
-        let bits = Self::read_usize(&mut reader, "bit width does not fit in usize")?;
-        let mask = utils::read_u64_le(&mut reader)?;
-        let vector = Self {
-            chunks,
-            len,
-            bits,
-            mask,
-        };
-        vector.validate()?;
-        Ok(vector)
-    }
-
-    #[inline(always)]
-    #[cfg(feature = "std")]
-    pub fn allocated_bytes(&self) -> usize {
-        self.chunks.len() * core::mem::size_of::<u64>()
-    }
-
-    #[cfg(feature = "std")]
-    fn validate(&self) -> io::Result<()> {
+    fn validate(&self, num_words: usize) -> Result<()> {
         if self.bits == 0 || self.bits > u64::BITS as usize {
-            return Err(Self::invalid_data("bit width must be in 1..=64"));
+            return Err(FcsdError::InvalidData("bit width must be in 1..=64"));
         }
 
         let expected_mask = if self.bits == u64::BITS as usize {
@@ -124,30 +99,19 @@ impl IntVector {
             (1_u64 << self.bits) - 1
         };
         if self.mask != expected_mask {
-            return Err(Self::invalid_data("mask does not match bit width"));
+            return Err(FcsdError::InvalidData("mask does not match bit width"));
         }
 
         let total_bits = self
             .len
             .checked_mul(self.bits)
-            .ok_or_else(|| Self::invalid_data("packed bit length overflow"))?;
-        let expected_chunks = Self::words_for(total_bits);
-        if self.chunks.len() != expected_chunks {
-            return Err(Self::invalid_data(
+            .ok_or(FcsdError::InvalidData("packed bit length overflow"))?;
+        if num_words != Self::words_for(total_bits) {
+            return Err(FcsdError::InvalidData(
                 "chunk count does not match length and bit width",
             ));
         }
         Ok(())
-    }
-
-    #[cfg(feature = "std")]
-    fn invalid_data(message: &'static str) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, message)
-    }
-
-    #[cfg(feature = "std")]
-    fn read_usize<R: io::Read>(reader: &mut R, error: &'static str) -> io::Result<usize> {
-        usize::try_from(utils::read_u64_le(reader)?).map_err(|_| Self::invalid_data(error))
     }
 
     #[inline(always)]
