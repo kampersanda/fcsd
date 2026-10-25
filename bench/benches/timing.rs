@@ -35,6 +35,31 @@ fn criterion_locate(c: &mut Criterion) {
     locate(&mut group, &keys, &keys);
 }
 
+fn criterion_decode(c: &mut Criterion) {
+    let mut group = c.benchmark_group("decode");
+    group.sample_size(SAMPLE_SIZE);
+    group.warm_up_time(WARM_UP_TIME);
+    group.measurement_time(MEASURE_TIME);
+    group.sampling_mode(SamplingMode::Flat);
+
+    let keys = load_keyset("data/words-100000");
+    for &bs in &BUCKET_SIZES {
+        group.bench_function(format!("fcsd<{}>", bs), |b| {
+            let dict = fcsd::Set::with_bucket_size(&keys, bs).unwrap();
+            let mut decoder = dict.decoder();
+            b.iter(|| {
+                let mut sum = 0;
+                for id in 0..keys.len() {
+                    sum += decoder.run(id).len();
+                }
+                if sum == 0 {
+                    panic!();
+                }
+            });
+        });
+    }
+}
+
 fn build(group: &mut BenchmarkGroup<WallTime>, keys: &[String]) {
     for &bs in &BUCKET_SIZES {
         group.bench_function(format!("fcsd<{}>", bs), |b| {
@@ -93,6 +118,6 @@ where
     keys
 }
 
-criterion_group!(benches, criterion_build, criterion_locate);
+criterion_group!(benches, criterion_build, criterion_locate, criterion_decode);
 
 criterion_main!(benches);

@@ -15,7 +15,8 @@ The data structure is a plain front-coded string dictionary described in [*Mart√
 - **Indexed set.** Fcsd implements an indexed set of strings in a compressed format. `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
 - **Simple and fast compression/decompression.** Fcsd maintains a set of strings in a compressed space through *front coding*, a differential compression technique for strings, allowing for fast decompression operations.
 - **Random access.** Fcsd maintains strings through a bucketization technique enabling to directly decompress arbitrary strings and perform binary search for strings.
-- **`no_std` support.** Disable default features to use Fcsd in an allocator-enabled `no_std` environment. Serialization and deserialization require the default `std` feature.
+- **Zero-copy loading.** A set is kept in its serialized form, so `Set::from_bytes` can query it directly from any byte buffer, such as a memory-mapped file, without copying.
+- **`no_std` support.** Disable default features to use Fcsd in an allocator-enabled `no_std` environment. `Set::from_bytes` works without `std`; reader/writer-based serialization requires the default `std` feature.
 
 ## Example
 
@@ -62,7 +63,23 @@ set.serialize_into(&mut data).unwrap();
 assert_eq!(data.len(), set.size_in_bytes());
 let other = Set::deserialize_from(&data[..]).unwrap();
 assert_eq!(data.len(), other.size_in_bytes());
+
+// Zero-copy loading from bytes
+let view = Set::from_bytes(data.as_slice()).unwrap();
+assert_eq!(view.locator().run(b"SIGKDD"), Some(3));
 ```
+
+### Memory-mapped files
+
+`Set::from_bytes` accepts any `S: AsRef<[u8]>`, so a memory map can be passed as is (here with the [`memmap2`](https://crates.io/crates/memmap2) crate):
+
+```rust
+let file = std::fs::File::open("keys.fcsd")?;
+let mmap = unsafe { memmap2::Mmap::map(&file)? };
+let set = fcsd::Set::from_bytes(mmap)?;
+```
+
+`Set::from_bytes` validates every key, which reads the whole file. For trusted data, `Set::from_bytes_trusted` checks only the header and metadata, so pages are loaded lazily as queries touch them.
 
 ## Todo
 

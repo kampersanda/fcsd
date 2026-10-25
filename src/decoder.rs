@@ -1,12 +1,12 @@
 use alloc::vec::Vec;
 
 use crate::utils;
-use crate::Set;
+use crate::{Set, SetRef};
 
 /// Decoder class to get string keys associated with given ids.
 #[derive(Clone)]
 pub struct Decoder<'a> {
-    set: &'a Set,
+    set: SetRef<'a>,
     dec: Vec<u8>,
 }
 
@@ -16,7 +16,11 @@ impl<'a> Decoder<'a> {
     /// # Arguments
     ///
     ///  - `set`: Front-coding dictionay.
-    pub fn new(set: &'a Set) -> Self {
+    pub fn new<S>(set: &'a Set<S>) -> Self
+    where
+        S: AsRef<[u8]>,
+    {
+        let set = set.view();
         Self {
             set,
             dec: Vec::with_capacity(set.max_length()),
@@ -44,7 +48,7 @@ impl<'a> Decoder<'a> {
         let mut pos = set.decode_header(bi, dec);
 
         for _ in 0..bj {
-            let (lcp, num) = utils::vbyte::decode(&set.serialized[pos..]);
+            let (lcp, num) = utils::vbyte::decode(&set.keys[pos..]);
             pos += num;
 
             dec.resize(lcp, 0);

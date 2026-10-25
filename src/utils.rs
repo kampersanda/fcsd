@@ -1,31 +1,49 @@
 use core::cmp::Ordering;
-#[cfg(feature = "std")]
-use std::io::{self, Read, Write};
+use core::convert::{TryFrom, TryInto};
 
+use crate::errors::{FcsdError, Result};
 use crate::END_MARKER;
 
-#[cfg(feature = "std")]
-pub fn read_u32_le<R: Read>(mut reader: R) -> io::Result<u32> {
-    let mut bytes = [0; size_of::<u32>()];
-    reader.read_exact(&mut bytes)?;
-    Ok(u32::from_le_bytes(bytes))
+/// Cursor that reads little-endian values from serialized bytes.
+pub struct ByteReader<'a> {
+    data: &'a [u8],
+    pos: usize,
 }
 
-#[cfg(feature = "std")]
-pub fn read_u64_le<R: Read>(mut reader: R) -> io::Result<u64> {
-    let mut bytes = [0; size_of::<u64>()];
-    reader.read_exact(&mut bytes)?;
-    Ok(u64::from_le_bytes(bytes))
-}
+impl<'a> ByteReader<'a> {
+    pub const fn new(data: &'a [u8]) -> Self {
+        Self { data, pos: 0 }
+    }
 
-#[cfg(feature = "std")]
-pub fn write_u32_le<W: Write>(mut writer: W, value: u32) -> io::Result<()> {
-    writer.write_all(&value.to_le_bytes())
-}
+    pub const fn pos(&self) -> usize {
+        self.pos
+    }
 
-#[cfg(feature = "std")]
-pub fn write_u64_le<W: Write>(mut writer: W, value: u64) -> io::Result<()> {
-    writer.write_all(&value.to_le_bytes())
+    pub const fn is_empty(&self) -> bool {
+        self.pos == self.data.len()
+    }
+
+    pub fn take(&mut self, len: usize) -> Result<&'a [u8]> {
+        let bytes = self
+            .data
+            .get(self.pos..)
+            .and_then(|rest| rest.get(..len))
+            .ok_or(FcsdError::InvalidData("unexpected end of data"))?;
+        self.pos += len;
+        Ok(bytes)
+    }
+
+    pub fn read_u32(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    pub fn read_u64(&mut self) -> Result<u64> {
+        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+
+    pub fn read_usize(&mut self, error: &'static str) -> Result<usize> {
+        usize::try_from(self.read_u64()?).map_err(|_| FcsdError::InvalidData(error))
+    }
 }
 
 /// Returns (lcp, cmp) such that

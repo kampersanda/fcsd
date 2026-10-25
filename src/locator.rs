@@ -2,12 +2,12 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use crate::utils;
-use crate::Set;
+use crate::{Set, SetRef};
 
 /// Locator class to get ids of given string keys.
 #[derive(Clone)]
 pub struct Locator<'a> {
-    set: &'a Set,
+    set: SetRef<'a>,
     dec: Vec<u8>,
 }
 
@@ -17,7 +17,11 @@ impl<'a> Locator<'a> {
     /// # Arguments
     ///
     ///  - `set`: Front-coding dictionay.
-    pub fn new(set: &'a Set) -> Self {
+    pub fn new<S>(set: &'a Set<S>) -> Self
+    where
+        S: AsRef<[u8]>,
+    {
+        let set = set.view();
         Self {
             set,
             dec: Vec::with_capacity(set.max_length()),
@@ -50,7 +54,7 @@ impl<'a> Locator<'a> {
         }
 
         let mut pos = set.decode_header(bi, dec);
-        if pos == set.serialized.len() {
+        if pos == set.keys.len() {
             return None;
         }
 
@@ -73,7 +77,7 @@ impl<'a> Locator<'a> {
 
         // 2) Process the next strings
         for bj in 2..set.bucket_size() {
-            if pos == set.serialized.len() {
+            if pos == set.keys.len() {
                 break;
             }
 
