@@ -1,23 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-//! # Fast and compact indexed string set using front coding
-//!
-//! This crate provides an indexed set of strings in a compressed format based on front coding.
-//! `n` strings in the set are indexed with integers from `[0..n-1]` and assigned in the lexicographical order.
-//!
-//! ## Supported queries
-//!
-//!  - `Locate` gets the index of a string key.
-//!  - `Decode` gets the string with an index.
-//!  - `Predict` enumerates the strings starting from a prefix.
-//!
-//! ## Zero-copy loading
-//!
-//! A [`Set`] is stored in its serialized form, so it can be queried directly
-//! from any byte buffer, such as a memory-mapped file, with [`Set::from_bytes`].
-//!
-//! ## References
-//!
-//!  - Martínez-Prieto et al., [Practical compressed string dictionaries](https://doi.org/10.1016/j.is.2015.08.008), INFOSYS 2016
+#![doc = include_str!("../README.md")]
 
 extern crate alloc;
 
@@ -86,56 +68,7 @@ pub const FORMAT_VERSION: u32 = 1;
 ///
 /// Input keys must not contain `\0` character because the character is used for the terminator.
 ///
-/// # Example
-///
-/// ```
-/// use fcsd::Set;
-///
-/// // Input string keys should be sorted and unique.
-/// let keys = ["ICDM", "ICML", "SIGIR", "SIGKDD", "SIGMOD"];
-///
-/// // Builds an indexed set.
-/// let set = Set::new(keys).unwrap();
-/// assert_eq!(set.len(), keys.len());
-///
-/// // Gets indexes associated with given keys.
-/// let mut locator = set.locator();
-/// assert_eq!(locator.run(b"ICML"), Some(1));
-/// assert_eq!(locator.run(b"SIGMOD"), Some(4));
-/// assert_eq!(locator.run(b"SIGSPATIAL"), None);
-///
-/// // Decodes string keys from given indexes.
-/// let mut decoder = set.decoder();
-/// assert_eq!(decoder.run(0), b"ICDM".to_vec());
-/// assert_eq!(decoder.run(3), b"SIGKDD".to_vec());
-///
-/// // Enumerates indexes and keys stored in the set.
-/// let mut iter = set.iter();
-/// assert_eq!(iter.next(), Some((0, b"ICDM".to_vec())));
-/// assert_eq!(iter.next(), Some((1, b"ICML".to_vec())));
-/// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
-/// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
-/// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
-/// assert_eq!(iter.next(), None);
-///
-/// // Enumerates indexes and keys starting with a prefix.
-/// let mut iter = set.predictive_iter(b"SIG");
-/// assert_eq!(iter.next(), Some((2, b"SIGIR".to_vec())));
-/// assert_eq!(iter.next(), Some((3, b"SIGKDD".to_vec())));
-/// assert_eq!(iter.next(), Some((4, b"SIGMOD".to_vec())));
-/// assert_eq!(iter.next(), None);
-///
-/// // Serialization / Deserialization
-/// let mut data = Vec::<u8>::new();
-/// set.serialize_into(&mut data).unwrap();
-/// assert_eq!(data.len(), set.size_in_bytes());
-/// let other = Set::deserialize_from(&data[..]).unwrap();
-/// assert_eq!(data.len(), other.size_in_bytes());
-///
-/// // Zero-copy loading from bytes
-/// let view = Set::from_bytes(data.as_slice()).unwrap();
-/// assert_eq!(view.locator().run(b"SIGKDD"), Some(3));
-/// ```
+/// For a usage example, see the [crate-level documentation](crate#example).
 #[derive(Clone)]
 pub struct Set<S = Vec<u8>> {
     data: S,
@@ -331,13 +264,8 @@ where
     /// assert_eq!(view.locator().run(b"SIGIR"), Some(2));
     /// ```
     ///
-    /// With a memory-mapped file, e.g., using the `memmap2` crate:
-    ///
-    /// ```ignore
-    /// let file = std::fs::File::open("keys.fcsd")?;
-    /// let mmap = unsafe { memmap2::Mmap::map(&file)? };
-    /// let set = fcsd::Set::from_bytes(mmap)?;
-    /// ```
+    /// For a memory-mapped file example using `memmap2`, see the
+    /// [crate-level documentation](crate#memory-mapped-files).
     pub fn from_bytes(data: S) -> Result<Self> {
         let set = Self::from_bytes_trusted(data)?;
         set.view().validate_keys()?;

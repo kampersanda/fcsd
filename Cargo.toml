@@ -19,5 +19,9 @@ categories = ["data-structures"]
 default = ["std"]
 std = []
 
+[dev-dependencies]
+memmap2 = "0.9"
+tempfile = "3"
+
 [workspace]
 members = ["bench"]
