@@ -86,10 +86,6 @@ let set = fcsd::Set::from_bytes(mmap).unwrap();
 See [the benchmark suite](bench/README.md) and [measured results](bench/RESULTS.md)
 for comparisons with fst and yada on words and Wikipedia URLs.
 
-## Todo
-
-- Add RePair compressed veriants.
-
 ## Licensing
 
 This library is free software provided under MIT.
